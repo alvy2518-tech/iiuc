@@ -12,6 +12,8 @@ import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { cvAPI } from "@/lib/api"
 import { CommonNavbar } from "@/components/common-navbar"
+import html2canvas from "html2canvas"
+import jsPDF from "jspdf"
 
 interface Profile {
   full_name: string
@@ -195,109 +197,161 @@ export default function CVBuilderPage() {
     }
   }
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
     if (!cvRef.current) return
     
-    // Use browser's print functionality for PDF export
-    const printWindow = window.open('', '_blank')
-    if (!printWindow) {
-      alert("Please allow popups to export PDF")
-      return
+    try {
+      // Show loading state
+      const downloadBtn = document.querySelector('[data-download-btn]') as HTMLElement
+      const originalText = downloadBtn?.textContent
+      if (downloadBtn) {
+        downloadBtn.textContent = 'Generating PDF...'
+        downloadBtn.setAttribute('disabled', 'true')
+      }
+
+      // Create a temporary container with better styling for PDF
+      const tempContainer = document.createElement('div')
+      tempContainer.style.position = 'absolute'
+      tempContainer.style.left = '-9999px'
+      tempContainer.style.width = '210mm' // A4 width
+      tempContainer.style.padding = '20mm'
+      tempContainer.style.backgroundColor = '#ffffff'
+      tempContainer.style.fontFamily = "'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
+      
+      // Clone the CV content
+      const clonedContent = cvRef.current.cloneNode(true) as HTMLElement
+      
+      // Apply PDF-specific styles
+      clonedContent.style.width = '100%'
+      clonedContent.style.backgroundColor = '#ffffff'
+      clonedContent.style.color = '#1a1a1a'
+      clonedContent.style.fontSize = '11pt'
+      clonedContent.style.lineHeight = '1.6'
+      
+      // Style all sections for PDF
+      const sections = clonedContent.querySelectorAll('[class*="mb-6"]')
+      sections.forEach((section: any) => {
+        section.style.marginBottom = '20px'
+        section.style.pageBreakInside = 'avoid'
+      })
+      
+      // Style headers
+      const headers = clonedContent.querySelectorAll('h1, h2')
+      headers.forEach((header: any) => {
+        if (header.tagName === 'H1') {
+          header.style.fontSize = '28pt'
+          header.style.fontWeight = '700'
+          header.style.color = '#1a1a1a'
+          header.style.marginBottom = '10px'
+          header.style.borderBottom = '3px solid #633ff3'
+          header.style.paddingBottom = '10px'
+        } else if (header.tagName === 'H2') {
+          header.style.fontSize = '16pt'
+          header.style.fontWeight = '600'
+          header.style.color = '#633ff3'
+          header.style.marginTop = '20px'
+          header.style.marginBottom = '12px'
+          header.style.borderBottom = '2px solid #e5e7eb'
+          header.style.paddingBottom = '6px'
+        }
+      })
+      
+      // Style text
+      const textElements = clonedContent.querySelectorAll('p, div, span')
+      textElements.forEach((el: any) => {
+        if (el.style) {
+          el.style.color = '#374151'
+          el.style.fontSize = '11pt'
+        }
+      })
+      
+      // Style badges
+      const badges = clonedContent.querySelectorAll('[class*="Badge"]')
+      badges.forEach((badge: any) => {
+        badge.style.backgroundColor = '#f3f4f6'
+        badge.style.color = '#1f2937'
+        badge.style.padding = '4px 10px'
+        badge.style.borderRadius = '4px'
+        badge.style.fontSize = '9pt'
+        badge.style.display = 'inline-block'
+        badge.style.margin = '2px'
+      })
+      
+      // Style links
+      const links = clonedContent.querySelectorAll('a')
+      links.forEach((link: any) => {
+        link.style.color = '#633ff3'
+        link.style.textDecoration = 'none'
+      })
+      
+      // Style lists
+      const lists = clonedContent.querySelectorAll('ul')
+      lists.forEach((list: any) => {
+        list.style.marginLeft = '20px'
+        list.style.marginTop = '8px'
+        list.style.marginBottom = '8px'
+      })
+      
+      const listItems = clonedContent.querySelectorAll('li')
+      listItems.forEach((li: any) => {
+        li.style.marginBottom = '4px'
+        li.style.fontSize = '10pt'
+        li.style.color = '#4b5563'
+      })
+      
+      tempContainer.appendChild(clonedContent)
+      document.body.appendChild(tempContainer)
+      
+      // Generate canvas
+      const canvas = await html2canvas(tempContainer, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        width: tempContainer.scrollWidth,
+        height: tempContainer.scrollHeight
+      })
+      
+      // Remove temporary container
+      document.body.removeChild(tempContainer)
+      
+      // Calculate PDF dimensions
+      const imgWidth = 210 // A4 width in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width
+      
+      // Create PDF
+      const pdf = new jsPDF('p', 'mm', 'a4')
+      const pageHeight = pdf.internal.pageSize.getHeight()
+      let heightLeft = imgHeight
+      let position = 0
+      
+      // Add first page
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight)
+      heightLeft -= pageHeight
+      
+      // Add additional pages if needed
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight
+        pdf.addPage()
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight)
+        heightLeft -= pageHeight
+      }
+      
+      // Download PDF
+      const fileName = `${profile?.full_name?.replace(/\s+/g, '_') || 'CV'}_Resume.pdf`
+      pdf.save(fileName)
+      
+      // Reset button
+      if (downloadBtn) {
+        downloadBtn.textContent = originalText || 'Export PDF'
+        downloadBtn.removeAttribute('disabled')
+      }
+      
+      alert("PDF downloaded successfully!")
+    } catch (error) {
+      console.error("Error generating PDF:", error)
+      alert("Failed to generate PDF. Please try again.")
     }
-
-    const printContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>CV - ${profile?.full_name || 'Resume'}</title>
-          <style>
-            @media print {
-              @page { margin: 0.5in; }
-            }
-            body {
-              font-family: 'Times New Roman', serif;
-              line-height: 1.6;
-              color: #333;
-              max-width: 8.5in;
-              margin: 0 auto;
-              padding: 20px;
-            }
-            .header {
-              border-bottom: 2px solid #333;
-              padding-bottom: 15px;
-              margin-bottom: 20px;
-            }
-            .header h1 {
-              margin: 0;
-              font-size: 28px;
-              font-weight: bold;
-            }
-            .header .contact {
-              margin-top: 10px;
-              font-size: 12px;
-            }
-            .section {
-              margin-bottom: 25px;
-            }
-            .section-title {
-              font-size: 18px;
-              font-weight: bold;
-              border-bottom: 1px solid #333;
-              padding-bottom: 5px;
-              margin-bottom: 10px;
-            }
-            .item {
-              margin-bottom: 15px;
-            }
-            .item-header {
-              display: flex;
-              justify-content: space-between;
-              font-weight: bold;
-              margin-bottom: 5px;
-            }
-            .item-meta {
-              font-size: 12px;
-              color: #666;
-              margin-bottom: 5px;
-            }
-            .item-description {
-              font-size: 12px;
-              margin-top: 5px;
-            }
-            .item-description ul {
-              margin: 5px 0;
-              padding-left: 20px;
-            }
-            .item-description li {
-              margin-bottom: 3px;
-            }
-            .skills-list {
-              display: flex;
-              flex-wrap: wrap;
-              gap: 8px;
-            }
-            .skill-badge {
-              background: #f0f0f0;
-              padding: 4px 8px;
-              border-radius: 4px;
-              font-size: 11px;
-            }
-          </style>
-        </head>
-        <body>
-          ${cvRef.current.innerHTML}
-        </body>
-      </html>
-    `
-
-    printWindow.document.write(printContent)
-    printWindow.document.close()
-    printWindow.focus()
-    
-    setTimeout(() => {
-      printWindow.print()
-      printWindow.close()
-    }, 250)
   }
 
   const copyToClipboard = (text: string, type: string) => {
@@ -376,6 +430,7 @@ export default function CVBuilderPage() {
               <Button
                 variant="outline"
                 onClick={handleExportPDF}
+                data-download-btn
                 className="border-green-600 text-green-600 hover:bg-green-50"
               >
                 <Download className="h-4 w-4 mr-2" />
@@ -604,31 +659,39 @@ export default function CVBuilderPage() {
 
           {/* CV Preview */}
           <div className="lg:col-span-2">
-            <Card className="p-8 bg-white" ref={cvRef}>
+            <Card className="p-8 bg-white shadow-xl" ref={cvRef} style={{ maxWidth: '210mm', margin: '0 auto' }}>
               {/* Header */}
-              <div className="border-b-2 border-gray-900 pb-4 mb-6">
-                <h1 className="text-3xl font-bold text-gray-900">{profile.full_name}</h1>
+              <div className="border-b-4 border-[#633ff3] pb-4 mb-6">
+                <h1 className="text-3xl font-bold text-gray-900 mb-3">{profile.full_name}</h1>
                 <div className="mt-2 text-sm text-gray-600 space-y-1">
-                  <div>{profile.email}</div>
-                  {profile.phone_number && <div>{profile.phone_number}</div>}
-                  <div>{profile.city}, {profile.country}</div>
-                  <div className="flex flex-wrap gap-3 mt-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{profile.email}</span>
+                  </div>
+                  {profile.phone_number && (
+                    <div className="flex items-center gap-2">
+                      <span>{profile.phone_number}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <span>{profile.city}, {profile.country}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-4 mt-3">
                     {profile.linkedin_url && (
-                      <a href={profile.linkedin_url} target="_blank" rel="noopener noreferrer" className="flex items-center text-blue-600 hover:underline">
-                        <Linkedin className="h-3 w-3 mr-1" />
-                        LinkedIn
+                      <a href={profile.linkedin_url} target="_blank" rel="noopener noreferrer" className="flex items-center text-blue-600 hover:text-blue-800 transition-colors">
+                        <Linkedin className="h-4 w-4 mr-1" />
+                        <span className="text-xs">LinkedIn</span>
                       </a>
                     )}
                     {profile.github_url && (
-                      <a href={profile.github_url} target="_blank" rel="noopener noreferrer" className="flex items-center text-gray-700 hover:underline">
-                        <Github className="h-3 w-3 mr-1" />
-                        GitHub
+                      <a href={profile.github_url} target="_blank" rel="noopener noreferrer" className="flex items-center text-gray-700 hover:text-gray-900 transition-colors">
+                        <Github className="h-4 w-4 mr-1" />
+                        <span className="text-xs">GitHub</span>
                       </a>
                     )}
                     {profile.portfolio_website && (
-                      <a href={profile.portfolio_website} target="_blank" rel="noopener noreferrer" className="flex items-center text-purple-600 hover:underline">
-                        <Globe className="h-3 w-3 mr-1" />
-                        Portfolio
+                      <a href={profile.portfolio_website} target="_blank" rel="noopener noreferrer" className="flex items-center text-purple-600 hover:text-purple-800 transition-colors">
+                        <Globe className="h-4 w-4 mr-1" />
+                        <span className="text-xs">Portfolio</span>
                       </a>
                     )}
                   </div>
@@ -638,8 +701,8 @@ export default function CVBuilderPage() {
               {/* Professional Summary */}
               {(professionalSummary || profile.bio) && (
                 <div className="mb-6">
-                  <h2 className="text-xl font-bold border-b border-gray-900 pb-1 mb-3">Professional Summary</h2>
-                  <p className="text-sm text-gray-700">
+                  <h2 className="text-xl font-bold text-[#633ff3] border-b-2 border-gray-200 pb-2 mb-3">Professional Summary</h2>
+                  <p className="text-sm text-gray-700 leading-relaxed">
                     {professionalSummary || profile.bio}
                   </p>
                 </div>
@@ -648,11 +711,11 @@ export default function CVBuilderPage() {
               {/* Skills */}
               {skills.length > 0 && (
                 <div className="mb-6">
-                  <h2 className="text-xl font-bold border-b border-gray-900 pb-1 mb-3">Skills</h2>
+                  <h2 className="text-xl font-bold text-[#633ff3] border-b-2 border-gray-200 pb-2 mb-3">Skills</h2>
                   <div className="flex flex-wrap gap-2">
                     {skills.map((skill, idx) => (
-                      <Badge key={idx} variant="secondary" className="text-xs">
-                        {skill.skill_name} ({skill.skill_level})
+                      <Badge key={idx} variant="secondary" className="text-xs bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors">
+                        {skill.skill_name} <span className="text-gray-500">({skill.skill_level})</span>
                       </Badge>
                     ))}
                   </div>
@@ -662,33 +725,33 @@ export default function CVBuilderPage() {
               {/* Experience */}
               {getDisplayExperience().length > 0 && (
                 <div className="mb-6">
-                  <h2 className="text-xl font-bold border-b border-gray-900 pb-1 mb-3 flex items-center">
+                  <h2 className="text-xl font-bold text-[#633ff3] border-b-2 border-gray-200 pb-2 mb-4 flex items-center">
                     <Briefcase className="h-5 w-5 mr-2" />
                     Experience
                   </h2>
-                  <div className="space-y-4">
+                  <div className="space-y-5">
                     {getDisplayExperience().map((exp) => (
-                      <div key={exp.id}>
-                        <div className="flex justify-between items-start mb-1">
+                      <div key={exp.id} className="border-l-4 border-[#633ff3] pl-4 pb-2">
+                        <div className="flex justify-between items-start mb-2">
                           <div>
-                            <div className="font-semibold text-gray-900">{exp.job_title}</div>
-                            <div className="text-sm text-gray-600">{exp.company}</div>
+                            <div className="font-semibold text-gray-900 text-base">{exp.job_title}</div>
+                            <div className="text-sm text-gray-600 font-medium">{exp.company}</div>
                           </div>
-                          <div className="text-sm text-gray-600">
+                          <div className="text-sm text-gray-500 font-medium">
                             {formatDate(exp.start_date)} - {exp.is_current ? 'Present' : formatDate(exp.end_date || '')}
                           </div>
                         </div>
                         {exp.location && (
-                          <div className="text-xs text-gray-500 mb-2">{exp.location}</div>
+                          <div className="text-xs text-gray-500 mb-3">{exp.location}</div>
                         )}
                         {exp.enhancedBulletPoints && exp.enhancedBulletPoints.length > 0 ? (
-                          <ul className="text-sm text-gray-700 list-disc list-inside mt-2">
+                          <ul className="text-sm text-gray-700 list-disc list-inside mt-2 space-y-1">
                             {exp.enhancedBulletPoints.map((bullet, idx) => (
-                              <li key={idx}>{bullet}</li>
+                              <li key={idx} className="leading-relaxed">{bullet}</li>
                             ))}
                           </ul>
                         ) : exp.description && (
-                          <p className="text-sm text-gray-700 mt-2">{exp.description}</p>
+                          <p className="text-sm text-gray-700 mt-2 leading-relaxed">{exp.description}</p>
                         )}
                       </div>
                     ))}
@@ -699,44 +762,44 @@ export default function CVBuilderPage() {
               {/* Projects */}
               {getDisplayProjects().length > 0 && (
                 <div className="mb-6">
-                  <h2 className="text-xl font-bold border-b border-gray-900 pb-1 mb-3 flex items-center">
+                  <h2 className="text-xl font-bold text-[#633ff3] border-b-2 border-gray-200 pb-2 mb-4 flex items-center">
                     <Code className="h-5 w-5 mr-2" />
                     Projects
                   </h2>
-                  <div className="space-y-4">
+                  <div className="space-y-5">
                     {getDisplayProjects().map((project) => (
-                      <div key={project.id}>
-                        <div className="flex justify-between items-start mb-1">
+                      <div key={project.id} className="border-l-4 border-[#633ff3] pl-4 pb-2">
+                        <div className="flex justify-between items-start mb-2">
                           <div>
-                            <div className="font-semibold text-gray-900">{project.project_title}</div>
+                            <div className="font-semibold text-gray-900 text-base">{project.project_title}</div>
                             {project.organization && (
-                              <div className="text-sm text-gray-600">{project.organization}</div>
+                              <div className="text-sm text-gray-600 font-medium">{project.organization}</div>
                             )}
                           </div>
-                          <div className="text-sm text-gray-600">
+                          <div className="text-sm text-gray-500 font-medium">
                             {formatDate(project.start_date)} - {project.is_ongoing ? 'Ongoing' : formatDate(project.end_date || '')}
                           </div>
                         </div>
                         {project.technologies_used && project.technologies_used.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mb-2">
+                          <div className="flex flex-wrap gap-1 mb-3">
                             {project.technologies_used.map((tech, idx) => (
-                              <Badge key={idx} variant="outline" className="text-xs">
+                              <Badge key={idx} variant="outline" className="text-xs bg-gray-50">
                                 {tech}
                               </Badge>
                             ))}
                           </div>
                         )}
                         {project.enhancedBulletPoints && project.enhancedBulletPoints.length > 0 ? (
-                          <ul className="text-sm text-gray-700 list-disc list-inside mt-2">
+                          <ul className="text-sm text-gray-700 list-disc list-inside mt-2 space-y-1">
                             {project.enhancedBulletPoints.map((bullet, idx) => (
-                              <li key={idx}>{bullet}</li>
+                              <li key={idx} className="leading-relaxed">{bullet}</li>
                             ))}
                           </ul>
                         ) : (
-                          <p className="text-sm text-gray-700 mt-2">{project.description}</p>
+                          <p className="text-sm text-gray-700 mt-2 leading-relaxed">{project.description}</p>
                         )}
                         {project.project_url && (
-                          <a href={project.project_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline mt-1 inline-flex items-center">
+                          <a href={project.project_url} target="_blank" rel="noopener noreferrer" className="text-xs text-[#633ff3] hover:text-[#5330d4] hover:underline mt-2 inline-flex items-center font-medium">
                             View Project <ExternalLink className="h-3 w-3 ml-1" />
                           </a>
                         )}
@@ -749,28 +812,28 @@ export default function CVBuilderPage() {
               {/* Education */}
               {education.length > 0 && (
                 <div className="mb-6">
-                  <h2 className="text-xl font-bold border-b border-gray-900 pb-1 mb-3 flex items-center">
+                  <h2 className="text-xl font-bold text-[#633ff3] border-b-2 border-gray-200 pb-2 mb-4 flex items-center">
                     <GraduationCap className="h-5 w-5 mr-2" />
                     Education
                   </h2>
                   <div className="space-y-4">
                     {education.map((edu) => (
-                      <div key={edu.id}>
-                        <div className="flex justify-between items-start mb-1">
+                      <div key={edu.id} className="border-l-4 border-[#633ff3] pl-4 pb-2">
+                        <div className="flex justify-between items-start mb-2">
                           <div>
-                            <div className="font-semibold text-gray-900">{edu.degree}</div>
-                            <div className="text-sm text-gray-600">{edu.institution}</div>
-                            <div className="text-xs text-gray-500">{edu.field_of_study}</div>
+                            <div className="font-semibold text-gray-900 text-base">{edu.degree}</div>
+                            <div className="text-sm text-gray-600 font-medium">{edu.institution}</div>
+                            <div className="text-xs text-gray-500 mt-1">{edu.field_of_study}</div>
                           </div>
-                          <div className="text-sm text-gray-600">
+                          <div className="text-sm text-gray-500 font-medium">
                             {formatDate(edu.start_date)} - {edu.is_current ? 'Present' : formatDate(edu.end_date || '')}
                           </div>
                         </div>
                         {edu.grade && (
-                          <div className="text-sm text-gray-700 mt-1">Grade: {edu.grade}</div>
+                          <div className="text-sm text-gray-700 mt-2 font-medium">Grade: <span className="font-normal">{edu.grade}</span></div>
                         )}
                         {edu.achievements && (
-                          <p className="text-sm text-gray-700 mt-1">{edu.achievements}</p>
+                          <p className="text-sm text-gray-700 mt-2 leading-relaxed">{edu.achievements}</p>
                         )}
                       </div>
                     ))}
@@ -781,21 +844,21 @@ export default function CVBuilderPage() {
               {/* Certifications */}
               {certifications.length > 0 && (
                 <div className="mb-6">
-                  <h2 className="text-xl font-bold border-b border-gray-900 pb-1 mb-3 flex items-center">
+                  <h2 className="text-xl font-bold text-[#633ff3] border-b-2 border-gray-200 pb-2 mb-4 flex items-center">
                     <Award className="h-5 w-5 mr-2" />
                     Certifications
                   </h2>
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {certifications.map((cert) => (
-                      <div key={cert.id}>
-                        <div className="font-semibold text-gray-900">{cert.certification_name}</div>
-                        <div className="text-sm text-gray-600">{cert.issuing_organization}</div>
-                        <div className="text-xs text-gray-500">
+                      <div key={cert.id} className="border-l-4 border-[#633ff3] pl-4 pb-2">
+                        <div className="font-semibold text-gray-900 text-base">{cert.certification_name}</div>
+                        <div className="text-sm text-gray-600 font-medium mt-1">{cert.issuing_organization}</div>
+                        <div className="text-xs text-gray-500 mt-2">
                           Issued: {formatDate(cert.issue_date)}
                           {cert.expiry_date && ` • Expires: ${formatDate(cert.expiry_date)}`}
                         </div>
                         {cert.credential_id && (
-                          <div className="text-xs text-gray-500">Credential ID: {cert.credential_id}</div>
+                          <div className="text-xs text-gray-500 mt-1">Credential ID: <span className="font-mono">{cert.credential_id}</span></div>
                         )}
                       </div>
                     ))}
