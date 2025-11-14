@@ -285,3 +285,22 @@ export const cvAPI = {
   generateRecommendations: () => api.post('/cv/recommendations'),
 };
 
+// Video Call API
+export const videoCallAPI = {
+  // Generate token
+  generateToken: (data: { conversationId: string; channelName?: string }) =>
+    api.post('/video-calls/token', data),
+  
+  // Start call
+  startCall: (conversationId: string) =>
+    api.post('/video-calls/start', { conversationId }),
+  
+  // End call
+  endCall: (callId: string) =>
+    api.put(`/video-calls/${callId}/end`),
+  
+  // Get history
+  getHistory: (conversationId: string) =>
+    api.get(`/video-calls/conversation/${conversationId}/history`),
+};
+
