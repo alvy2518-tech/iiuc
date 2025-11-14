@@ -197,7 +197,7 @@ export default function BrowseJobsPage() {
     try {
       // Fetch external jobs from SerpAPI via backend
       const searchQuery = searchKeyword || selectedCategory || "Software Engineer"
-      const userLocation = candidateProfile?.city || candidateProfile?.country || location || "Bangladesh"
+      const userLocation = location || candidateProfile?.city || candidateProfile?.country || "Dhaka"
       
       console.log('Fetching external jobs from SerpAPI:', { searchQuery, userLocation })
       
@@ -550,14 +550,23 @@ export default function BrowseJobsPage() {
                     <span className="text-gray-500 text-xs group-open:rotate-180 transition-transform">▾</span>
                   </summary>
                   <div className="pt-2">
-                  <input
-                    type="text"
-                    placeholder="e.g., Remote, USA"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                      className="w-full px-2 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#633ff3] focus:border-transparent text-sm"
-                  />
-                </div>
+                    <select
+                      value={location}
+                      onChange={(e) => setLocation(e.target.value)}
+                      className="w-full px-2 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#633ff3] text-sm"
+                    >
+                      <option value="">All Locations</option>
+                      <option value="Dhaka">Dhaka</option>
+                      <option value="Chittagong">Chittagong</option>
+                      <option value="Sylhet">Sylhet</option>
+                      <option value="Khulna">Khulna</option>
+                      <option value="Rajshahi">Rajshahi</option>
+                      <option value="Barisal">Barisal</option>
+                      <option value="Rangpur">Rangpur</option>
+                      <option value="Mymensingh">Mymensingh</option>
+                      <option value="Remote">Remote</option>
+                    </select>
+                  </div>
                 </details>
 
                 {/* Currency (Accordion) */}
@@ -1185,13 +1194,22 @@ export default function BrowseJobsPage() {
                     <span className="text-gray-500 text-xs group-open:rotate-180 transition-transform">▾</span>
                   </summary>
                   <div className="pt-2">
-                    <input
-                      type="text"
-                      placeholder="e.g., Remote, USA"
+                    <select
                       value={location}
                       onChange={(e) => setLocation(e.target.value)}
-                      className="w-full px-2 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#633ff3] focus:border-transparent text-sm"
-                    />
+                      className="w-full px-2 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#633ff3] text-sm"
+                    >
+                      <option value="">All Locations</option>
+                      <option value="Dhaka">Dhaka</option>
+                      <option value="Chittagong">Chittagong</option>
+                      <option value="Sylhet">Sylhet</option>
+                      <option value="Khulna">Khulna</option>
+                      <option value="Rajshahi">Rajshahi</option>
+                      <option value="Barisal">Barisal</option>
+                      <option value="Rangpur">Rangpur</option>
+                      <option value="Mymensingh">Mymensingh</option>
+                      <option value="Remote">Remote</option>
+                    </select>
                   </div>
                 </details>
 
