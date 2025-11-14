@@ -1,0 +1,739 @@
+const OpenAI = require('openai');
+
+// Initialize OpenAI client
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+/**
+ * AI Analysis Service for Job Skills and Candidate Matching
+ */
+class AIAnalysisService {
+
+  /**
+   * Generate course summary using AI
+   * @param {Object} courseData - Course information
+   * @returns {Object} Summary with key points and takeaways
+   */
+  static async generateCourseSummary(courseData) {
+    try {
+      const prompt = `
+        Analyze the following course and provide a comprehensive summary:
+        
+        Title: ${courseData.title}
+        Description: ${courseData.description}
+        Skills Covered: ${courseData.skills.join(', ')}
+        Duration: ${courseData.duration}
+        Level: ${courseData.level}
+        Instructor: ${courseData.instructor}
+        Platform: ${courseData.platform}
+        
+        Provide a JSON response with:
+        1. overview: A 2-3 sentence overview of the course
+        2. keyTopics: Array of 5-7 main topics covered
+        3. learningOutcomes: Array of 5-7 specific things you'll learn
+        4. targetAudience: Who should take this course
+        5. prerequisites: Any prerequisites needed
+        6. timeCommitment: Estimated time commitment
+        
+        Return ONLY valid JSON in this format:
+        {
+          "overview": "string",
+          "keyTopics": ["topic1", "topic2", ...],
+          "learningOutcomes": ["outcome1", "outcome2", ...],
+          "targetAudience": "string",
+          "prerequisites": "string",
+          "timeCommitment": "string"
+        }
+      `;
+
+      const response = await openai.chat.completions.create({
+        model: 'gpt-3.5-turbo',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.7,
+        max_tokens: 800,
+      });
+
+      const content = response.choices[0].message.content.trim();
+      const summary = JSON.parse(content);
+      
+      return summary;
+    } catch (error) {
+      console.error('Error generating course summary:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate mind map structure for course using AI
+   * @param {Object} courseData - Course information
+   * @returns {Object} Mind map structure with nodes and connections
+   */
+  static async generateCourseMindMap(courseData) {
+    try {
+      const prompt = `
+        Create a detailed mind map structure for the following course:
+        
+        Title: ${courseData.title}
+        Description: ${courseData.description}
+        Skills: ${courseData.skills.join(', ')}
+        Level: ${courseData.level}
+        
+        Generate a hierarchical mind map with:
+        - Central node: Course title
+        - Main branches: 4-6 major topics/modules
+        - Sub-branches: 3-5 subtopics for each main branch
+        - Include relationships and dependencies
+        
+        Return ONLY valid JSON in this format:
+        {
+          "title": "Course Title",
+          "nodes": [
+            {
+              "id": "1",
+              "label": "Main Topic",
+              "level": 1,
+              "parentId": null,
+              "color": "#633ff3"
+            },
+            {
+              "id": "1.1",
+              "label": "Subtopic",
+              "level": 2,
+              "parentId": "1",
+              "color": "#8b5cf6"
+            }
+          ]
+        }
+        
+        Use colors: #633ff3 for level 1, #8b5cf6 for level 2, #a78bfa for level 3
+      `;
+
+      const response = await openai.chat.completions.create({
+        model: 'gpt-3.5-turbo',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.8,
+        max_tokens: 1500,
+      });
+
+      const content = response.choices[0].message.content.trim();
+      const mindMap = JSON.parse(content);
+      
+      return mindMap;
+    } catch (error) {
+      console.error('Error generating mind map:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate comprehensive study notes for course
+   * @param {Object} courseData - Course information
+   * @returns {Object} Detailed study notes with multiple sections
+   */
+  static async generateCourseNotes(courseData) {
+    try {
+      const prompt = `
+        Generate comprehensive, in-depth technical study notes for the following course:
+        
+        Title: ${courseData.title}
+        Description: ${courseData.description}
+        Skills Covered: ${courseData.skills.join(', ')}
+        Duration: ${courseData.duration}
+        Level: ${courseData.level}
+        Instructor: ${courseData.instructor}
+        Platform: ${courseData.platform}
+        
+        Create detailed technical study notes (10-12 pages worth of content) with the following structure:
+        
+        1. Course Overview (1 page) - Comprehensive introduction
+        2. Learning Objectives (1 page) - Clear goals and outcomes
+        3. Main Topics with detailed technical explanations (6-8 pages):
+           - For each major topic:
+             * Technical introduction and industry relevance
+             * Core technical concepts with definitions
+             * Implementation details and architecture patterns
+             * Code examples and syntax demonstrations
+             * Real-world technical applications and use cases
+             * Performance considerations and optimization techniques
+             * Security best practices and common vulnerabilities
+             * Industry standards and conventions
+             * Debugging tips and troubleshooting strategies
+             * Common technical pitfalls and how to avoid them
+        4. Key Takeaways and Summary (1 page) - Critical technical insights
+        5. Additional Resources and Next Steps (1 page) - Advanced learning paths
+        6. Practice Exercises/Questions (1 page) - Technical challenges
+        
+        IMPORTANT: Make the content highly technical and comprehensive:
+        - Include actual code snippets and syntax examples
+        - Explain technical concepts in depth (algorithms, data structures, design patterns)
+        - Cover implementation details (how things work under the hood)
+        - Include technical terminology and industry-standard practices
+        - Explain architecture patterns and system design considerations
+        - Cover debugging techniques and error handling strategies
+        - Include performance optimization tips
+        - Discuss scalability and best practices
+        - Reference technical documentation and standards
+        - Provide hands-on technical examples
+        
+        Return ONLY valid JSON in this format:
+        {
+          "courseTitle": "string",
+          "generatedDate": "string",
+          "overview": {
+            "introduction": "string (250-350 words - technical overview with industry context)",
+            "courseScope": "string (200-250 words - technical scope and what will be covered)",
+            "targetAudience": "string (120 words - technical prerequisites and audience)",
+            "prerequisites": ["technical prerequisite 1", "technical prerequisite 2", ...]
+          },
+          "learningObjectives": {
+            "primaryGoals": ["technical goal 1", "technical goal 2", ...],
+            "skillsYouWillGain": ["technical skill 1", "technical skill 2", ...],
+            "expectedOutcomes": "string (250 words - specific technical capabilities)"
+          },
+          "topics": [
+            {
+              "topicNumber": 1,
+              "title": "string (technical topic name)",
+              "introduction": "string (200-250 words - technical introduction)",
+              "keyConcepts": [
+                {
+                  "concept": "string (technical concept name)",
+                  "definition": "string (150-200 words - detailed technical definition)",
+                  "importance": "string (80-120 words - technical importance and use cases)"
+                }
+              ],
+              "detailedExplanation": "string (500-700 words - in-depth technical explanation with examples, code snippets, architecture patterns, implementation details)",
+              "practicalExamples": ["technical example 1 (150 words with code)", "technical example 2 (150 words with code)"],
+              "bestPractices": ["technical best practice 1 with reasoning", "technical best practice 2 with reasoning", ...],
+              "commonMistakes": ["technical mistake 1 with solution", "technical mistake 2 with solution", ...]
+            }
+          ],
+          "keyTakeaways": {
+            "summary": "string (300-350 words - comprehensive technical summary)",
+            "criticalPoints": ["critical technical point 1", "critical technical point 2", ...],
+            "realWorldApplications": ["technical application 1 (80 words)", "technical application 2 (80 words)"]
+          },
+          "additionalResources": {
+            "recommendedReading": ["technical resource/documentation 1", "technical resource 2", ...],
+            "practiceProjects": ["technical project 1 with details", "technical project 2 with details", ...],
+            "nextSteps": ["advanced technical step 1", "advanced technical step 2", ...]
+          },
+          "practiceExercises": [
+            {
+              "exerciseNumber": 1,
+              "question": "string (technical challenge/problem)",
+              "difficulty": "Easy|Medium|Hard",
+              "hint": "string (technical hint with approach)"
+            }
+          ]
+        }
+      `;
+
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4-turbo-preview',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.7,
+        max_tokens: 4000,
+      });
+
+      const content = response.choices[0].message.content.trim();
+      
+      // Remove markdown code blocks if present
+      const jsonContent = content.replace(/```json\n?|\n?```/g, '').trim();
+      const notes = JSON.parse(jsonContent);
+      
+      return notes;
+    } catch (error) {
+      console.error('Error generating course notes:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Extract skills from job posting using AI
+   * @param {Object} jobData - Complete job data
+   * @returns {Array} Array of extracted skills
+   */
+  static async extractJobSkills(jobData) {
+    try {
+      const manualSkillsSection = jobData.requiredSkills && jobData.requiredSkills.length > 0
+        ? `\nManually Specified Required Skills: ${jobData.requiredSkills.join(', ')}`
+        : '';
+
+      const prompt = `
+        Analyze the following job posting and extract ALL technical skills, tools, technologies, and competencies mentioned.
+        
+        Job Title: ${jobData.jobTitle || ''}
+        Department: ${jobData.department || ''}
+        Job Description: ${jobData.jobDescription || ''}
+        Responsibilities: ${jobData.responsibilities || ''}
+        Qualifications: ${jobData.qualifications || ''}
+        Nice to Have: ${jobData.niceToHave || ''}
+        Benefits: ${jobData.benefits || ''}${manualSkillsSection}
+        
+        Return ONLY a JSON array of skills in this exact format:
+        [
+          {
+            "skill": "skill_name",
+            "category": "programming_language|framework|tool|soft_skill|other",
+            "importance": "required|preferred|nice_to_have"
+          }
+        ]
+        
+        IMPORTANT: If there are manually specified required skills, you MUST include ALL of them in your output as "required" importance.
+        Additionally, extract any other skills mentioned in the job description, responsibilities, and qualifications.
+        Be comprehensive but precise. Include programming languages, frameworks, tools, methodologies, soft skills, etc.
+        Normalize skill names (e.g., "React.js" -> "React", "JavaScript" -> "JavaScript").
+        Do not include generic terms like "experience" or "knowledge".
+      `;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert at analyzing job postings and extracting technical skills. Return only valid JSON arrays."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 2000
+      });
+
+      const extractedSkills = JSON.parse(response.choices[0].message.content);
+      
+      // Validate and normalize the response
+      if (!Array.isArray(extractedSkills)) {
+        throw new Error('AI returned invalid format');
+      }
+
+      return extractedSkills.map(skill => ({
+        skill: skill.skill?.toLowerCase().trim() || '',
+        category: skill.category || 'other',
+        importance: skill.importance || 'required'
+      })).filter(skill => skill.skill.length > 0);
+
+    } catch (error) {
+      console.error('Error extracting job skills:', error);
+      throw new Error('Failed to extract job skills using AI');
+    }
+  }
+
+  /**
+   * Analyze candidate skills against job requirements
+   * @param {Array} candidateSkills - Candidate's skills array
+   * @param {Array} jobSkills - Job's required skills array
+   * @returns {Object} Analysis result with matching and missing skills
+   */
+  static async analyzeSkillMatch(candidateSkills, jobSkills) {
+    try {
+      const prompt = `
+        Analyze the skill match between a candidate and a job posting.
+        
+        CANDIDATE SKILLS:
+        ${JSON.stringify(candidateSkills, null, 2)}
+        
+        JOB REQUIRED SKILLS:
+        ${JSON.stringify(jobSkills, null, 2)}
+        
+        Return a JSON object in this exact format:
+        {
+          "matching_skills": [
+            {
+              "skill": "skill_name",
+              "candidate_level": "Beginner|Intermediate|Advanced|Expert",
+              "job_requirement": "required|preferred|nice_to_have",
+              "match_quality": "exact|similar|partial"
+            }
+          ],
+          "missing_skills": [
+            {
+              "skill": "skill_name",
+              "job_requirement": "required|preferred|nice_to_have",
+              "importance": "high|medium|low"
+            }
+          ],
+          "match_percentage": 85
+        }
+        
+        Rules:
+        - Consider skill variations (e.g., "React" matches "React.js", "JavaScript" matches "JS")
+        - Be generous with matching - include similar skills
+        - Calculate match percentage based on required skills only
+        - Include soft skills in analysis
+        - Prioritize exact matches over similar ones
+      `;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert recruiter analyzing skill compatibility. Return only valid JSON objects."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        temperature: 0.1,
+        max_tokens: 3000
+      });
+
+      const analysis = JSON.parse(response.choices[0].message.content);
+      
+      // Validate response structure
+      if (!analysis.matching_skills || !analysis.missing_skills || typeof analysis.match_percentage !== 'number') {
+        throw new Error('AI returned invalid analysis format');
+      }
+
+      return {
+        matching_skills: analysis.matching_skills || [],
+        missing_skills: analysis.missing_skills || [],
+        match_percentage: Math.max(0, Math.min(100, analysis.match_percentage || 0))
+      };
+
+    } catch (error) {
+      console.error('Error analyzing skill match:', error);
+      throw new Error('Failed to analyze skill match using AI');
+    }
+  }
+
+  /**
+   * Get skill recommendations for missing skills
+   * @param {Array} missingSkills - Array of missing skills
+   * @returns {Array} Array of skill recommendations with learning paths
+   */
+  static async getSkillRecommendations(missingSkills) {
+    try {
+      if (!missingSkills || missingSkills.length === 0) {
+        return [];
+      }
+
+      const prompt = `
+        Provide learning recommendations for these missing skills:
+        ${JSON.stringify(missingSkills, null, 2)}
+        
+        Return a JSON array in this format:
+        [
+          {
+            "skill": "skill_name",
+            "learning_path": "Brief description of how to learn this skill",
+            "resources": ["resource1", "resource2"],
+            "estimated_time": "time_estimate",
+            "difficulty": "beginner|intermediate|advanced"
+          }
+        ]
+        
+        Focus on practical, actionable learning paths.
+        Include free and paid resources.
+        Be specific about time estimates.
+      `;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "You are a career development expert providing skill learning recommendations. Return only valid JSON arrays."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 2000
+      });
+
+      const recommendations = JSON.parse(response.choices[0].message.content);
+      
+      return Array.isArray(recommendations) ? recommendations : [];
+
+    } catch (error) {
+      console.error('Error getting skill recommendations:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Generate comprehensive learning roadmap for multiple interested jobs
+   * @param {Array} candidateSkills - Candidate's current skills
+   * @param {Array} interestedJobs - Array of interested jobs with their skills
+   * @returns {Object} Structured learning roadmap with phases
+   */
+  static async generateLearningRoadmap(candidateSkills, interestedJobs) {
+    try {
+      if (!interestedJobs || interestedJobs.length === 0) {
+        return {
+          learning_phases: [],
+          career_paths: [],
+          total_time_estimate: '0 months',
+          total_skills_needed: 0
+        };
+      }
+
+      // Aggregate all unique skills from all interested jobs
+      const allJobSkills = [];
+      interestedJobs.forEach(job => {
+        if (job.skills && Array.isArray(job.skills)) {
+          job.skills.forEach(skill => {
+            allJobSkills.push({
+              skill: skill.skill_name,
+              job_title: job.job_title,
+              job_id: job.id
+            });
+          });
+        }
+      });
+
+      const prompt = `
+        You are a career development expert. Create a comprehensive LINEAR learning roadmap for a candidate.
+        
+        CANDIDATE'S CURRENT SKILLS:
+        ${JSON.stringify(candidateSkills, null, 2)}
+        
+        INTERESTED JOBS:
+        ${JSON.stringify(interestedJobs.map(job => ({
+          id: job.id,
+          job_title: job.job_title,
+          department: job.department,
+          experience_level: job.experience_level,
+          required_skills: job.skills?.map(s => s.skill_name) || []
+        })), null, 2)}
+        
+        Create a LINEAR learning path (Phase 1 → Phase 2 → Phase 3...) that:
+        1. Starts with foundational skills the candidate is missing
+        2. Progresses to intermediate skills that build on foundations
+        3. Ends with advanced/specialized skills for their target roles
+        4. Shows which skills unlock which career opportunities
+        5. Provides realistic time estimates for each phase
+        
+        Return ONLY a JSON object in this EXACT format:
+        {
+          "learning_phases": [
+            {
+              "phase": 1,
+              "title": "Foundation Skills",
+              "description": "Core skills you need to start your journey",
+              "duration": "2-3 months",
+              "skills": [
+                {
+                  "skill": "JavaScript",
+                  "category": "programming_language",
+                  "difficulty": "beginner",
+                  "time_estimate": "4 weeks",
+                  "learning_path": "Start with basics, then ES6+",
+                  "resources": ["freeCodeCamp", "MDN Web Docs", "JavaScript.info"],
+                  "unlocks": ["React", "Node.js"],
+                  "required_for_jobs": ["uuid1", "uuid2"]
+                }
+              ]
+            },
+            {
+              "phase": 2,
+              "title": "Intermediate Development",
+              "description": "Build on your foundation",
+              "duration": "3-4 months",
+              "prerequisites": ["JavaScript"],
+              "skills": [...]
+            }
+          ],
+          "career_paths": [
+            {
+              "role": "Frontend Developer",
+              "target_job_ids": ["uuid1", "uuid2"],
+              "required_phases": [1, 2],
+              "readiness_after_phase_2": "75%",
+              "job_titles": ["Frontend Developer", "React Developer"]
+            }
+          ],
+          "total_time_estimate": "6-9 months",
+          "total_skills_needed": 15,
+          "summary": "Your learning journey to become job-ready"
+        }
+        
+        IMPORTANT RULES:
+        - Make phases LINEAR and sequential (must complete phase 1 before phase 2)
+        - Group related skills together in same phase
+        - Ensure prerequisites are in earlier phases
+        - Be realistic with time estimates
+        - Only include skills the candidate doesn't already have
+        - Link skills to specific job IDs where they're required
+        - Limit to 3-5 phases maximum
+        - Each phase should have 3-8 skills
+      `;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert career advisor creating structured learning roadmaps. Return only valid JSON objects with the exact structure specified."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        temperature: 0.2,
+        max_tokens: 4000
+      });
+
+      const roadmap = JSON.parse(response.choices[0].message.content);
+      
+      // Validate response structure
+      if (!roadmap.learning_phases || !Array.isArray(roadmap.learning_phases)) {
+        throw new Error('AI returned invalid roadmap format');
+      }
+
+      return {
+        learning_phases: roadmap.learning_phases || [],
+        career_paths: roadmap.career_paths || [],
+        total_time_estimate: roadmap.total_time_estimate || '0 months',
+        total_skills_needed: roadmap.total_skills_needed || 0,
+        summary: roadmap.summary || ''
+      };
+
+    } catch (error) {
+      console.error('Error generating learning roadmap:', error);
+      throw new Error('Failed to generate learning roadmap using AI');
+    }
+  }
+
+  /**
+   * Analyze candidate compatibility with job requirements
+   * @param {Object} candidateData - Candidate profile, skills, experience, education
+   * @param {Object} jobData - Job requirements, skills, qualifications
+   * @returns {Object} Compatibility analysis with score and gaps
+   */
+  static async analyzeCandidateCompatibility(candidateData, jobData) {
+    try {
+      const prompt = `
+        You are an expert recruiter analyzing candidate fit for a job position.
+        Analyze the candidate's qualifications against the job requirements comprehensively.
+        
+        JOB REQUIREMENTS:
+        Job Title: ${jobData.job_title || ''}
+        Experience Level: ${jobData.experience_level || ''}
+        Job Type: ${jobData.job_type || ''}
+        Job Description: ${jobData.job_description || ''}
+        Responsibilities: ${jobData.responsibilities || ''}
+        Required Qualifications: ${jobData.qualifications || ''}
+        Nice to Have: ${jobData.nice_to_have || ''}
+        Minimum Experience: ${jobData.minimum_experience_years || 0} years
+        Required Skills: ${JSON.stringify(jobData.required_skills || [])}
+        
+        CANDIDATE PROFILE:
+        Current Role: ${candidateData.current_job_title || 'Not specified'}
+        Current Company: ${candidateData.current_company || 'Not specified'}
+        Years of Experience: ${candidateData.years_of_experience || 0}
+        Bio: ${candidateData.bio || 'Not provided'}
+        
+        Candidate Skills:
+        ${JSON.stringify(candidateData.skills || [], null, 2)}
+        
+        Work Experience:
+        ${JSON.stringify(candidateData.experience || [], null, 2)}
+        
+        Education:
+        ${JSON.stringify(candidateData.education || [], null, 2)}
+        
+        Certifications:
+        ${JSON.stringify(candidateData.certifications || [], null, 2)}
+        
+        Return ONLY a JSON object in this EXACT format:
+        {
+          "overall_score": 85,
+          "score_breakdown": {
+            "skills_match": 80,
+            "experience_match": 90,
+            "education_match": 85,
+            "overall_fit": 85
+          },
+          "strengths": [
+            "Strong technical skills in required technologies",
+            "Relevant work experience in similar role",
+            "Excellent educational background"
+          ],
+          "skill_gaps": [
+            "Missing: React.js - Required for frontend development",
+            "Limited experience with: AWS - Needed for cloud deployment",
+            "No certification in: Project Management"
+          ],
+          "experience_gaps": [
+            "Lacks experience in leading teams",
+            "Limited exposure to enterprise-scale projects"
+          ],
+          "recommendations": [
+            "Strong candidate - Schedule interview immediately",
+            "Consider for senior role given experience level",
+            "May need training in React.js framework"
+          ],
+          "fit_level": "Excellent Fit",
+          "summary": "This candidate demonstrates strong alignment with the job requirements with 85% compatibility. They possess most required skills and relevant experience. Minor gaps in React.js can be addressed through training."
+        }
+        
+        SCORING GUIDELINES:
+        - 90-100: Excellent fit - Exceeds requirements
+        - 75-89: Good fit - Meets most requirements
+        - 60-74: Moderate fit - Meets some requirements
+        - Below 60: Poor fit - Significant gaps
+        
+        IMPORTANT RULES:
+        - Be objective and data-driven in analysis
+        - Highlight specific skill and experience gaps
+        - Consider years of experience vs job requirements
+        - Evaluate education relevance
+        - Provide actionable recommendations
+        - Use bullet points for clarity
+        - Be honest about gaps but also highlight strengths
+        - Score should reflect realistic compatibility
+      `;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert recruiter and HR analyst providing objective candidate assessments. Return only valid JSON objects."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        temperature: 0.2,
+        max_tokens: 2000
+      });
+
+      const analysis = JSON.parse(response.choices[0].message.content);
+      
+      // Validate response structure
+      if (!analysis.overall_score || !analysis.score_breakdown) {
+        throw new Error('AI returned invalid analysis format');
+      }
+
+      return {
+        overall_score: Math.max(0, Math.min(100, analysis.overall_score || 0)),
+        score_breakdown: analysis.score_breakdown || {},
+        strengths: analysis.strengths || [],
+        skill_gaps: analysis.skill_gaps || [],
+        experience_gaps: analysis.experience_gaps || [],
+        recommendations: analysis.recommendations || [],
+        fit_level: analysis.fit_level || 'Unknown',
+        summary: analysis.summary || ''
+      };
+
+    } catch (error) {
+      console.error('Error analyzing candidate compatibility:', error);
+      throw new Error('Failed to analyze candidate compatibility using AI');
+    }
+  }
+}
+
+module.exports = AIAnalysisService;
