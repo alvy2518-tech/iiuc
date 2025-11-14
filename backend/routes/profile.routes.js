@@ -97,6 +97,30 @@ router.delete(
   profileController.deleteSkill
 );
 
+// GET /api/v1/profiles/candidate/skills/unverified - Get unverified skills
+router.get(
+  '/candidate/skills/unverified',
+  authenticate,
+  authorize('candidate'),
+  profileController.getUnverifiedSkills
+);
+
+// POST /api/v1/profiles/candidate/skills/unverified/:unverifiedSkillId/exam - Generate exam
+router.post(
+  '/candidate/skills/unverified/:unverifiedSkillId/exam',
+  authenticate,
+  authorize('candidate'),
+  profileController.generateSkillExam
+);
+
+// POST /api/v1/profiles/candidate/skills/unverified/submit-exam - Submit exam
+router.post(
+  '/candidate/skills/unverified/submit-exam',
+  authenticate,
+  authorize('candidate'),
+  profileController.submitSkillExam
+);
+
 // ============================================
 // CANDIDATE EXPERIENCE ROUTES
 // ============================================

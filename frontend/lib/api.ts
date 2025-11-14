@@ -68,6 +68,9 @@ export const profileAPI = {
   addSkill: (data: any) => api.post('/profiles/candidate/skills', data),
   updateSkill: (skillId: string, data: any) => api.put(`/profiles/candidate/skills/${skillId}`, data),
   deleteSkill: (skillId: string) => api.delete(`/profiles/candidate/skills/${skillId}`),
+  getUnverifiedSkills: () => api.get('/profiles/candidate/skills/unverified'),
+  generateSkillExam: (unverifiedSkillId: string) => api.post(`/profiles/candidate/skills/unverified/${unverifiedSkillId}/exam`),
+  submitSkillExam: (data: { examId: string; answers: Array<{ questionIndex: number; answer: string }> }) => api.post('/profiles/candidate/skills/unverified/submit-exam', data),
   
   // Experience
   addExperience: (data: any) => api.post('/profiles/candidate/experience', data),

@@ -696,7 +696,7 @@ class AIAnalysisService {
       `;
 
       const response = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5-nano",
         messages: [
           {
             role: "system",
@@ -733,6 +733,183 @@ class AIAnalysisService {
       console.error('Error analyzing candidate compatibility:', error);
       throw new Error('Failed to analyze candidate compatibility using AI');
     }
+  }
+
+  /**
+   * Generate skill verification exam questions
+   * @param {string} skillName - Name of the skill
+   * @param {string} skillLevel - Level (Beginner, Intermediate, Advanced, Expert)
+   * @returns {Array} Array of 10 exam questions with answers
+   */
+  static async generateSkillVerificationExam(skillName, skillLevel) {
+    try {
+      const difficultyMap = {
+        'Beginner': 'basic and fundamental concepts',
+        'Intermediate': 'intermediate concepts with practical applications',
+        'Advanced': 'advanced concepts, best practices, and complex scenarios',
+        'Expert': 'expert-level concepts, architecture, optimization, and edge cases'
+      };
+
+      const difficulty = difficultyMap[skillLevel] || difficultyMap['Beginner'];
+
+      const prompt = `
+        You must respond with STRICT JSON ONLY. No commentary, no markdown.
+
+        Generate a skill verification exam for "${skillName}" at "${skillLevel}" level.
+        Requirements:
+        - Exactly 10 questions
+        - Questions should test ${difficulty}
+        - Each question must be multiple choice with 4 options (A, B, C, D)
+        - Only one correct answer per question
+        - Difficulty must match ${skillLevel} level
+
+        The response MUST be a JSON array that matches this schema exactly:
+        [
+          {
+            "question": "string",
+            "options": {
+              "A": "string",
+              "B": "string",
+              "C": "string",
+              "D": "string"
+            },
+            "correctAnswer": "A"
+          }
+        ]
+
+        Return ONLY the JSON array.`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4.1-nano",  // Fast, non-reasoning model
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert technical interviewer. Return ONLY a valid JSON array, nothing else."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        max_completion_tokens: 3000,
+        temperature: 0.7  // Add some variability to questions
+      });
+
+      // Log the full response for debugging
+      console.log('AI Response - Finish reason:', response.choices?.[0]?.finish_reason);
+      console.log('AI Response - Reasoning tokens:', response.usage?.completion_tokens_details?.reasoning_tokens);
+      console.log('AI Response - Content length:', response.choices?.[0]?.message?.content?.length || 0);
+      console.log('AI Response - Content preview:', response.choices?.[0]?.message?.content?.substring(0, 200));
+
+      // Parse the response
+      let questions;
+      try {
+        const content = response.choices?.[0]?.message?.content?.trim();
+        if (!content) {
+          console.error('AI returned empty content. Model used all tokens for reasoning.');
+          console.error('Usage:', response.usage);
+          throw new Error('AI returned empty response. Try using gpt-4o-mini instead of gpt-5-mini.');
+        }
+        // Try to extract JSON array from response
+        let jsonMatch = content.match(/\[[\s\S]*\]/);
+        if (!jsonMatch) {
+          // If no array found, try parsing as object
+          const parsed = JSON.parse(content);
+          questions = Array.isArray(parsed) ? parsed : (parsed.questions || parsed.exam || []);
+        } else {
+          questions = JSON.parse(jsonMatch[0]);
+        }
+      } catch (parseError) {
+        console.error('Parse error:', parseError);
+        console.error('Response content:', response.choices[0].message.content);
+        throw new Error('Failed to parse exam questions from AI response');
+      }
+
+      // Validate we have exactly 10 questions
+      if (!Array.isArray(questions) || questions.length !== 10) {
+        throw new Error(`Expected 10 questions, got ${questions?.length || 0}`);
+      }
+
+      // Validate each question has required fields
+      const optionLabels = ['A', 'B', 'C', 'D'];
+      const randomizeOptions = (question, index) => {
+        if (!question.question || !question.options || !question.correctAnswer) {
+          throw new Error(`Question ${index + 1} is missing required fields`);
+        }
+        if (!optionLabels.includes(question.correctAnswer)) {
+          throw new Error(`Question ${index + 1} has invalid correctAnswer`);
+        }
+        if (!question.options.A || !question.options.B || !question.options.C || !question.options.D) {
+          throw new Error(`Question ${index + 1} is missing options`);
+        }
+
+        // Shuffle options to avoid always having the correct answer as A
+        const shuffledEntries = Object.entries(question.options)
+          .sort(() => Math.random() - 0.5);
+
+        const newOptions = {};
+        let newCorrectAnswer = 'A';
+
+        shuffledEntries.forEach(([label, value], idx) => {
+          const newLabel = optionLabels[idx];
+          newOptions[newLabel] = value;
+          if (label === question.correctAnswer) {
+            newCorrectAnswer = newLabel;
+          }
+        });
+
+        return {
+          ...question,
+          options: newOptions,
+          correctAnswer: newCorrectAnswer,
+          explanation: question.explanation || ''
+        };
+      };
+
+      const randomizedQuestions = questions.map((question, index) => randomizeOptions(question, index));
+
+      return randomizedQuestions;
+    } catch (error) {
+      console.error('Error generating skill verification exam:', error);
+      throw new Error(`Failed to generate exam: ${error.message}`);
+    }
+  }
+
+  /**
+   * Evaluate exam answers and calculate score
+   * @param {Array} questions - Original exam questions
+   * @param {Array} answers - User's answers
+   * @returns {Object} Score and results
+   */
+  static evaluateExamAnswers(questions, answers) {
+    let score = 0;
+    const results = [];
+
+    questions.forEach((question, index) => {
+      const userAnswer = answers[index]?.answer || '';
+      const isCorrect = userAnswer.toUpperCase() === question.correctAnswer.toUpperCase();
+      
+      if (isCorrect) {
+        score++;
+      }
+
+      results.push({
+        questionIndex: index,
+        question: question.question,
+        userAnswer: userAnswer,
+        correctAnswer: question.correctAnswer,
+        isCorrect: isCorrect,
+        explanation: question.explanation || ''
+      });
+    });
+
+    return {
+      score,
+      totalMarks: questions.length,
+      percentage: Math.round((score / questions.length) * 100),
+      passed: score >= 7, // Passing score is 7/10
+      results
+    };
   }
 }
 

@@ -495,8 +495,39 @@ const addSkill = async (req, res) => {
       });
     }
 
-    const { data, error } = await supabase
+    // Check if skill already exists in verified skills
+    const { data: existingVerified } = await supabase
       .from('candidate_skills')
+      .select('id')
+      .eq('candidate_id', candidateProfile.id)
+      .ilike('skill_name', skillName)
+      .single();
+
+    if (existingVerified) {
+      return res.status(400).json({
+        error: 'Duplicate Skill',
+        message: 'This skill already exists in your verified skills'
+      });
+    }
+
+    // Check if skill already exists in unverified skills
+    const { data: existingUnverified } = await supabase
+      .from('unverified_skills')
+      .select('id')
+      .eq('candidate_id', candidateProfile.id)
+      .ilike('skill_name', skillName)
+      .single();
+
+    if (existingUnverified) {
+      return res.status(400).json({
+        error: 'Duplicate Skill',
+        message: 'This skill already exists in your unverified skills. Please verify it first.'
+      });
+    }
+
+    // Add to unverified_skills table
+    const { data, error } = await supabase
+      .from('unverified_skills')
       .insert({
         candidate_id: candidateProfile.id,
         skill_name: skillName,
@@ -515,34 +546,10 @@ const addSkill = async (req, res) => {
       throw error;
     }
 
-    // Clear AI analysis cache since skills changed
-    await supabase
-      .from('job_skill_analysis')
-      .delete()
-      .eq('candidate_id', candidateProfile.id);
-    
-    try {
-      await supabase
-        .from('job_skill_recommendations')
-        .delete()
-        .eq('candidate_id', candidateProfile.id);
-    } catch (cacheError) {
-      // Table might not exist, skip
-      console.log('Recommendations cache not available for clearing:', cacheError.message);
-    }
-    
-    // Clear learning roadmap cache
-    await supabase
-      .from('candidate_learning_roadmaps')
-      .delete()
-      .eq('candidate_id', candidateProfile.id);
-
-    // Trigger automatic re-analysis since skills changed
-    triggerReAnalysisForCandidate(candidateProfile.id);
-
     res.status(201).json({
-      message: 'Skill added successfully',
-      skill: data
+      message: 'Skill added to unverified list. Please verify it by taking an exam.',
+      skill: data,
+      requiresVerification: true
     });
   } catch (error) {
     console.error('Add skill error:', error);
@@ -566,47 +573,92 @@ const updateSkill = async (req, res) => {
       .eq('user_id', userId)
       .single();
 
-    const { data, error } = await supabase
+    // Check if skill exists in verified skills
+    const { data: verifiedSkill } = await supabase
       .from('candidate_skills')
-      .update({
-        skill_name: skillName,
-        skill_level: skillLevel
-      })
+      .select('*')
       .eq('id', skillId)
       .eq('candidate_id', candidateProfile.id)
-      .select()
       .single();
 
-    if (error) throw error;
+    if (verifiedSkill) {
+      // If skill name or level changed, move to unverified and require re-verification
+      if (verifiedSkill.skill_name !== skillName || verifiedSkill.skill_level !== skillLevel) {
+        // Delete from verified
+        await supabase
+          .from('candidate_skills')
+          .delete()
+          .eq('id', skillId);
 
-    // Clear AI analysis cache since skills changed
-    await supabase
-      .from('job_skill_analysis')
-      .delete()
-      .eq('candidate_id', candidateProfile.id);
-    
-    try {
-      await supabase
-        .from('job_skill_recommendations')
-        .delete()
-        .eq('candidate_id', candidateProfile.id);
-    } catch (cacheError) {
-      // Table might not exist, skip
-      console.log('Recommendations cache not available for clearing:', cacheError.message);
+        // Add to unverified
+        const { data: unverifiedSkill, error: unverifiedError } = await supabase
+          .from('unverified_skills')
+          .insert({
+            candidate_id: candidateProfile.id,
+            skill_name: skillName,
+            skill_level: skillLevel
+          })
+          .select()
+          .single();
+
+        if (unverifiedError) throw unverifiedError;
+
+        // Clear caches
+        await clearSkillCaches(candidateProfile.id);
+
+        return res.json({
+          message: 'Skill updated. Please verify it again by taking an exam.',
+          skill: unverifiedSkill,
+          requiresVerification: true
+        });
+      } else {
+        // No changes, return as is
+        return res.json({
+          message: 'Skill updated successfully',
+          skill: verifiedSkill
+        });
+      }
     }
-    
-    // Clear learning roadmap cache
-    await supabase
-      .from('candidate_learning_roadmaps')
-      .delete()
-      .eq('candidate_id', candidateProfile.id);
 
-    // Trigger automatic re-analysis since skills changed
-    triggerReAnalysisForCandidate(candidateProfile.id);
+    // If not in verified, check unverified
+    const { data: unverifiedSkill } = await supabase
+      .from('unverified_skills')
+      .select('*')
+      .eq('id', skillId)
+      .eq('candidate_id', candidateProfile.id)
+      .single();
 
-    res.json({
-      message: 'Skill updated successfully',
-      skill: data
+    if (unverifiedSkill) {
+      // Update unverified skill
+      const { data, error } = await supabase
+        .from('unverified_skills')
+        .update({
+          skill_name: skillName,
+          skill_level: skillLevel
+        })
+        .eq('id', skillId)
+        .eq('candidate_id', candidateProfile.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Delete any existing exams for this skill (need to regenerate)
+      await supabase
+        .from('skill_verification_exams')
+        .delete()
+        .eq('unverified_skill_id', skillId);
+
+      return res.json({
+        message: 'Skill updated. Please verify it by taking an exam.',
+        skill: data,
+        requiresVerification: true
+      });
+    }
+
+    return res.status(404).json({
+      error: 'Not Found',
+      message: 'Skill not found'
     });
   } catch (error) {
     console.error('Update skill error:', error);
@@ -629,35 +681,37 @@ const deleteSkill = async (req, res) => {
       .eq('user_id', userId)
       .single();
 
-    const { error } = await supabase
+    // Try to delete from verified skills
+    const { error: verifiedError } = await supabase
       .from('candidate_skills')
       .delete()
       .eq('id', skillId)
       .eq('candidate_id', candidateProfile.id);
 
-    if (error) throw error;
-
-    // Clear AI analysis cache since skills changed
-    await supabase
-      .from('job_skill_analysis')
-      .delete()
-      .eq('candidate_id', candidateProfile.id);
-    
-    try {
-      await supabase
-        .from('job_skill_recommendations')
+    // If not found in verified, try unverified
+    if (verifiedError && verifiedError.code !== 'PGRST116') {
+      const { error: unverifiedError } = await supabase
+        .from('unverified_skills')
         .delete()
+        .eq('id', skillId)
         .eq('candidate_id', candidateProfile.id);
-    } catch (cacheError) {
-      // Table might not exist, skip
-      console.log('Recommendations cache not available for clearing:', cacheError.message);
+
+      if (unverifiedError) throw unverifiedError;
+    } else if (verifiedError) {
+      // Try unverified if verified delete found nothing
+      const { error: unverifiedError } = await supabase
+        .from('unverified_skills')
+        .delete()
+        .eq('id', skillId)
+        .eq('candidate_id', candidateProfile.id);
+
+      if (unverifiedError && unverifiedError.code !== 'PGRST116') {
+        throw unverifiedError;
+      }
     }
-    
-    // Clear learning roadmap cache
-    await supabase
-      .from('candidate_learning_roadmaps')
-      .delete()
-      .eq('candidate_id', candidateProfile.id);
+
+    // Clear caches
+    await clearSkillCaches(candidateProfile.id);
 
     // Trigger re-analysis for all active applications
     triggerReAnalysisForCandidate(candidateProfile.id);
@@ -670,6 +724,308 @@ const deleteSkill = async (req, res) => {
     res.status(500).json({
       error: 'Internal Server Error',
       message: 'Failed to delete skill'
+    });
+  }
+};
+
+// Helper function to clear skill-related caches
+const clearSkillCaches = async (candidateId) => {
+  await supabase
+    .from('job_skill_analysis')
+    .delete()
+    .eq('candidate_id', candidateId);
+  
+  try {
+    await supabase
+      .from('job_skill_recommendations')
+      .delete()
+      .eq('candidate_id', candidateId);
+  } catch (cacheError) {
+    console.log('Recommendations cache not available for clearing:', cacheError.message);
+  }
+  
+  await supabase
+    .from('candidate_learning_roadmaps')
+    .delete()
+    .eq('candidate_id', candidateId);
+};
+
+// Get unverified skills
+const getUnverifiedSkills = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const { data: candidateProfile } = await supabaseAdmin
+      .from('candidate_profiles')
+      .select('id')
+      .eq('user_id', userId)
+      .single();
+
+    if (!candidateProfile) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'Candidate profile not found'
+      });
+    }
+
+    const { data: unverifiedSkills, error } = await supabase
+      .from('unverified_skills')
+      .select('*')
+      .eq('candidate_id', candidateProfile.id)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    res.json({
+      unverifiedSkills: unverifiedSkills || []
+    });
+  } catch (error) {
+    console.error('Get unverified skills error:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to fetch unverified skills'
+    });
+  }
+};
+
+// Generate exam for skill verification
+const generateSkillExam = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { unverifiedSkillId } = req.params;
+
+    const { data: candidateProfile } = await supabaseAdmin
+      .from('candidate_profiles')
+      .select('id')
+      .eq('user_id', userId)
+      .single();
+
+    if (!candidateProfile) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'Candidate profile not found'
+      });
+    }
+
+    // Get unverified skill
+    const { data: unverifiedSkill, error: skillError } = await supabase
+      .from('unverified_skills')
+      .select('*')
+      .eq('id', unverifiedSkillId)
+      .eq('candidate_id', candidateProfile.id)
+      .single();
+
+    if (skillError || !unverifiedSkill) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'Unverified skill not found'
+      });
+    }
+
+    // Check if exam already exists and is still valid (not expired)
+    const { data: existingExam } = await supabase
+      .from('skill_verification_exams')
+      .select('*')
+      .eq('unverified_skill_id', unverifiedSkillId)
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (existingExam) {
+      // Return exam without correct answers
+      const examForUser = existingExam.questions.map(q => ({
+        question: q.question,
+        options: q.options
+      }));
+
+      return res.json({
+        message: 'Exam retrieved successfully',
+        exam: {
+          id: existingExam.id,
+          questions: examForUser,
+          totalMarks: existingExam.total_marks,
+          passingMarks: existingExam.passing_marks,
+          skillName: existingExam.skill_name,
+          skillLevel: existingExam.skill_level
+        }
+      });
+    }
+
+    // Generate new exam using AI
+    const questions = await AIAnalysisService.generateSkillVerificationExam(
+      unverifiedSkill.skill_name,
+      unverifiedSkill.skill_level
+    );
+
+    // Save exam to database (expires in 24 hours)
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 24);
+
+    const { data: exam, error: examError } = await supabase
+      .from('skill_verification_exams')
+      .insert({
+        unverified_skill_id: unverifiedSkillId,
+        questions: questions,
+        total_marks: 10,
+        passing_marks: 7,
+        skill_name: unverifiedSkill.skill_name,
+        skill_level: unverifiedSkill.skill_level,
+        expires_at: expiresAt.toISOString()
+      })
+      .select()
+      .single();
+
+    if (examError) throw examError;
+
+    // Return exam without correct answers
+    const examForUser = questions.map(q => ({
+      question: q.question,
+      options: q.options
+    }));
+
+    res.json({
+      message: 'Exam generated successfully',
+      exam: {
+        id: exam.id,
+        questions: examForUser,
+        totalMarks: exam.total_marks,
+        passingMarks: exam.passing_marks,
+        skillName: exam.skill_name,
+        skillLevel: exam.skill_level
+      }
+    });
+  } catch (error) {
+    console.error('Generate exam error:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: error.message || 'Failed to generate exam'
+    });
+  }
+};
+
+// Submit exam and verify skill
+const submitSkillExam = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { examId, answers } = req.body;
+
+    if (!examId || !answers || !Array.isArray(answers)) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Exam ID and answers array are required'
+      });
+    }
+
+    const { data: candidateProfile } = await supabaseAdmin
+      .from('candidate_profiles')
+      .select('id')
+      .eq('user_id', userId)
+      .single();
+
+    if (!candidateProfile) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'Candidate profile not found'
+      });
+    }
+
+    // Get exam
+    const { data: exam, error: examError } = await supabase
+      .from('skill_verification_exams')
+      .select('*, unverified_skills!inner(*)')
+      .eq('id', examId)
+      .single();
+
+    if (examError || !exam) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'Exam not found or expired'
+      });
+    }
+
+    // Verify the exam belongs to this candidate
+    if (exam.unverified_skills.candidate_id !== candidateProfile.id) {
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: 'You do not have permission to submit this exam'
+      });
+    }
+
+    // Evaluate answers
+    const evaluation = AIAnalysisService.evaluateExamAnswers(exam.questions, answers);
+
+    // Save attempt
+    const { data: attempt, error: attemptError } = await supabase
+      .from('skill_verification_attempts')
+      .insert({
+        exam_id: examId,
+        unverified_skill_id: exam.unverified_skill_id,
+        candidate_id: candidateProfile.id,
+        answers: answers,
+        score: evaluation.score,
+        total_marks: evaluation.totalMarks,
+        passed: evaluation.passed,
+        submitted_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (attemptError) throw attemptError;
+
+    // If passed, move skill to verified skills
+    if (evaluation.passed) {
+      // Delete from unverified
+      await supabase
+        .from('unverified_skills')
+        .delete()
+        .eq('id', exam.unverified_skill_id);
+
+      // Add to verified
+      const { data: verifiedSkill, error: verifyError } = await supabase
+        .from('candidate_skills')
+        .insert({
+          candidate_id: candidateProfile.id,
+          skill_name: exam.skill_name,
+          skill_level: exam.skill_level
+        })
+        .select()
+        .single();
+
+      if (verifyError) throw verifyError;
+
+      // Clear caches
+      await clearSkillCaches(candidateProfile.id);
+
+      // Trigger re-analysis
+      triggerReAnalysisForCandidate(candidateProfile.id);
+
+      return res.json({
+        message: 'Congratulations! Skill verified successfully.',
+        passed: true,
+        score: evaluation.score,
+        totalMarks: evaluation.totalMarks,
+        percentage: evaluation.percentage,
+        results: evaluation.results,
+        verifiedSkill: verifiedSkill
+      });
+    } else {
+      // Failed - return results but don't verify
+      return res.json({
+        message: 'You did not pass the exam. Please try again.',
+        passed: false,
+        score: evaluation.score,
+        totalMarks: evaluation.totalMarks,
+        percentage: evaluation.percentage,
+        results: evaluation.results,
+        canRetry: true
+      });
+    }
+  } catch (error) {
+    console.error('Submit exam error:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: error.message || 'Failed to submit exam'
     });
   }
 };
@@ -1568,6 +1924,9 @@ module.exports = {
   addSkill,
   updateSkill,
   deleteSkill,
+  getUnverifiedSkills,
+  generateSkillExam,
+  submitSkillExam,
   addExperience,
   updateExperience,
   deleteExperience,

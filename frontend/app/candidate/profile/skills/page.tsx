@@ -2,17 +2,27 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Plus, Edit, Trash2 } from "lucide-react"
+import { Plus, Edit, Trash2, CheckCircle2, AlertCircle, Play } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
 import { profileAPI } from "@/lib/api"
 import { useLanguage } from "@/components/language-provider"
+import { SkillExam } from "@/components/skill-exam"
 // Layout provides navbar and sidebar
 
 interface Skill {
+  id: string
+  skill_name: string
+  skill_level: "Beginner" | "Intermediate" | "Advanced" | "Expert"
+  created_at: string
+  updated_at: string
+}
+
+interface UnverifiedSkill {
   id: string
   skill_name: string
   skill_level: "Beginner" | "Intermediate" | "Advanced" | "Expert"
@@ -24,11 +34,15 @@ export default function SkillsManagementPage() {
   const router = useRouter()
   const { t } = useLanguage()
   const [skills, setSkills] = useState<Skill[]>([])
+  const [unverifiedSkills, setUnverifiedSkills] = useState<UnverifiedSkill[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [editingSkill, setEditingSkill] = useState<Skill | null>(null)
+  const [editingSkill, setEditingSkill] = useState<Skill | UnverifiedSkill | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [error, setError] = useState("")
+  const [showExam, setShowExam] = useState(false)
+  const [currentExam, setCurrentExam] = useState<any>(null)
+  const [loadingExam, setLoadingExam] = useState(false)
   
   const [formData, setFormData] = useState({
     skillName: "",
@@ -45,13 +59,53 @@ export default function SkillsManagementPage() {
       if (!userStr) return
       
       const user = JSON.parse(userStr)
-      const response = await profileAPI.getCandidate(user.id)
-      setSkills(response.data.skills || [])
+      const [skillsResponse, unverifiedResponse] = await Promise.all([
+        profileAPI.getCandidate(user.id),
+        profileAPI.getUnverifiedSkills()
+      ])
+      setSkills(skillsResponse.data.skills || [])
+      setUnverifiedSkills(unverifiedResponse.data.unverifiedSkills || [])
     } catch (err) {
       console.error("Failed to fetch skills:", err)
       setError(t('profile.failedToLoadSkills'))
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleStartExam = async (unverifiedSkillId: string) => {
+    setLoadingExam(true)
+    try {
+      const response = await profileAPI.generateSkillExam(unverifiedSkillId)
+      // Remove correct answers from questions for display
+      const examForDisplay = {
+        ...response.data.exam,
+        questions: response.data.exam.questions.map((q: any) => ({
+          question: q.question,
+          options: q.options
+        }))
+      }
+      setCurrentExam(examForDisplay)
+      setShowExam(true)
+    } catch (err: any) {
+      console.error("Failed to generate exam:", err)
+      alert(err.response?.data?.message || "Failed to generate exam. Please try again.")
+    } finally {
+      setLoadingExam(false)
+    }
+  }
+
+  const handleSubmitExam = async (examId: string, answers: Array<{ questionIndex: number; answer: string }>) => {
+    try {
+      const response = await profileAPI.submitSkillExam({ examId, answers })
+      if (response.data.passed) {
+        // Refresh skills after successful verification
+        await fetchSkills()
+      }
+      return response.data
+    } catch (err: any) {
+      console.error("Failed to submit exam:", err)
+      throw err
     }
   }
 
@@ -63,16 +117,27 @@ export default function SkillsManagementPage() {
     try {
       if (editingSkill) {
         // Update existing skill
-        await profileAPI.updateSkill(editingSkill.id, formData)
-        setSkills(skills.map(skill => 
-          skill.id === editingSkill.id 
-            ? { ...skill, skill_name: formData.skillName, skill_level: formData.skillLevel }
-            : skill
-        ))
+        const response = await profileAPI.updateSkill(editingSkill.id, formData)
+        if (response.data.requiresVerification) {
+          // Skill moved to unverified, refresh
+          await fetchSkills()
+          alert("Skill updated. Please verify it by taking an exam.")
+        } else {
+          // Update in place
+          setSkills(skills.map(skill => 
+            skill.id === editingSkill.id 
+              ? { ...skill, skill_name: formData.skillName, skill_level: formData.skillLevel }
+              : skill
+          ))
+        }
       } else {
         // Add new skill
         const response = await profileAPI.addSkill(formData)
-        setSkills([...skills, response.data.skill])
+        if (response.data.requiresVerification) {
+          // Refresh to show in unverified section
+          await fetchSkills()
+          alert("Skill added. Please verify it by taking an exam.")
+        }
       }
 
       setFormData({ skillName: "", skillLevel: "Beginner" })
@@ -86,7 +151,7 @@ export default function SkillsManagementPage() {
     }
   }
 
-  const handleEdit = (skill: Skill) => {
+  const handleEdit = (skill: Skill | UnverifiedSkill) => {
     setEditingSkill(skill)
     setFormData({
       skillName: skill.skill_name,
@@ -100,7 +165,7 @@ export default function SkillsManagementPage() {
 
     try {
       await profileAPI.deleteSkill(skillId)
-      setSkills(skills.filter(skill => skill.id !== skillId))
+      await fetchSkills() // Refresh both lists
     } catch (err: any) {
       console.error("Failed to delete skill:", err)
       setError(err.response?.data?.message || t('profile.failedToDeleteSkill'))
@@ -214,8 +279,132 @@ export default function SkillsManagementPage() {
             </Card>
           )}
 
-          {/* Skills List */}
-          {skills.length === 0 ? (
+          {/* Verified Skills Section */}
+          <div className="space-y-4">
+            <div>
+              <h2 className="text-xl font-semibold flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-green-600" />
+                Verified Skills ({skills.length})
+              </h2>
+              <p className="text-sm text-gray-600 mt-1">
+                These skills have been verified through exams
+              </p>
+            </div>
+
+            {skills.length === 0 ? (
+              <Card className="p-8 text-center">
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold">No Verified Skills</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Add a skill and verify it to see it here
+                  </p>
+                </div>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {skills.map((skill) => (
+                  <Card key={skill.id} className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h3 className="font-semibold text-sm">{skill.skill_name}</h3>
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        </div>
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getSkillLevelColor(skill.skill_level)}`}>
+                          {translateSkillLevel(skill.skill_level)}
+                        </span>
+                      </div>
+                      <div className="flex gap-2 ml-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleEdit(skill)}
+                          aria-label="Edit skill"
+                          className="h-9 w-9 p-0 rounded-lg hover:bg-gray-100 cursor-pointer"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDelete(skill.id)}
+                          aria-label="Delete skill"
+                          className="h-9 w-9 p-0 rounded-lg text-destructive hover:text-destructive hover:bg-red-50 cursor-pointer"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Unverified Skills Section */}
+          {unverifiedSkills.length > 0 && (
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-xl font-semibold flex items-center gap-2">
+                  <AlertCircle className="h-5 w-5 text-orange-600" />
+                  Unverified Skills ({unverifiedSkills.length})
+                </h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  Verify these skills by taking a 10-mark exam
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {unverifiedSkills.map((skill) => (
+                  <Card key={skill.id} className="p-4 border-orange-200 bg-orange-50/50">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h3 className="font-semibold text-sm">{skill.skill_name}</h3>
+                          <AlertCircle className="h-4 w-4 text-orange-600" />
+                        </div>
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium mb-3 ${getSkillLevelColor(skill.skill_level)}`}>
+                          {translateSkillLevel(skill.skill_level)}
+                        </span>
+                        <Button
+                          size="sm"
+                          onClick={() => handleStartExam(skill.id)}
+                          disabled={loadingExam}
+                          className="w-full bg-[#633ff3] hover:bg-[#5330d4] text-white"
+                        >
+                          <Play className="h-4 w-4 mr-2" />
+                          {loadingExam ? "Loading..." : "Take Exam"}
+                        </Button>
+                      </div>
+                      <div className="flex gap-2 ml-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleEdit(skill)}
+                          aria-label="Edit skill"
+                          className="h-9 w-9 p-0 rounded-lg hover:bg-gray-100 cursor-pointer"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDelete(skill.id)}
+                          aria-label="Delete skill"
+                          className="h-9 w-9 p-0 rounded-lg text-destructive hover:text-destructive hover:bg-red-50 cursor-pointer"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Empty State - No skills at all */}
+          {skills.length === 0 && unverifiedSkills.length === 0 && !loading && (
             <Card className="p-8 text-center">
               <div className="space-y-2">
                 <h3 className="text-lg font-semibold">{t('profile.noSkillsAdded')}</h3>
@@ -228,41 +417,19 @@ export default function SkillsManagementPage() {
                 </Button>
               </div>
             </Card>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {skills.map((skill) => (
-                <Card key={skill.id} className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-sm">{skill.skill_name}</h3>
-                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium mt-2 ${getSkillLevelColor(skill.skill_level)}`}>
-                        {translateSkillLevel(skill.skill_level)}
-                      </span>
-                    </div>
-                    <div className="flex gap-2 ml-2">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleEdit(skill)}
-                        aria-label="Edit skill"
-                        className="h-9 w-9 p-0 rounded-lg hover:bg-gray-100 cursor-pointer"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDelete(skill.id)}
-                        aria-label="Delete skill"
-                        className="h-9 w-9 p-0 rounded-lg text-destructive hover:text-destructive hover:bg-red-50 cursor-pointer"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
+          )}
+
+          {/* Exam Modal */}
+          {showExam && currentExam && (
+            <SkillExam
+              exam={currentExam}
+              onClose={() => {
+                setShowExam(false)
+                setCurrentExam(null)
+                fetchSkills() // Refresh skills after exam
+              }}
+              onSubmit={handleSubmitExam}
+            />
           )}
     </div>
   )
