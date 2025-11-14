@@ -1162,6 +1162,254 @@ class AIAnalysisService {
       results
     };
   }
+
+  /**
+   * Generate professional summary for CV
+   * @param {Object} profileData - Candidate profile data
+   * @returns {string} Professional summary
+   */
+  static async generateProfessionalSummary(profileData) {
+    try {
+      const {
+        headline,
+        bio,
+        yearsOfExperience,
+        currentJobTitle,
+        currentCompany,
+        skills = [],
+        experience = [],
+        education = []
+      } = profileData;
+
+      const skillsList = skills.map(s => `${s.skill_name} (${s.skill_level})`).join(', ') || 'None';
+      const experienceSummary = experience.slice(0, 3).map(exp => 
+        `${exp.job_title} at ${exp.company}`
+      ).join(', ') || 'None';
+      const educationSummary = education.slice(0, 2).map(edu => 
+        `${edu.degree} in ${edu.field_of_study}`
+      ).join(', ') || 'None';
+
+      const prompt = `
+        Generate a professional summary (2-3 sentences) for a CV/resume based on the following profile:
+        
+        Headline: ${headline || 'Not provided'}
+        Bio: ${bio || 'Not provided'}
+        Years of Experience: ${yearsOfExperience || 'Not specified'}
+        Current Role: ${currentJobTitle || 'N/A'} at ${currentCompany || 'N/A'}
+        Top Skills: ${skillsList}
+        Recent Experience: ${experienceSummary}
+        Education: ${educationSummary}
+        
+        Requirements:
+        - 2-3 sentences maximum
+        - Professional and concise
+        - Highlight key skills and experience
+        - Use action-oriented language
+        - No personal pronouns (I, me, my)
+        
+        Return ONLY the summary text, nothing else.
+      `;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert resume writer. Generate professional, concise CV summaries."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        max_completion_tokens: 200,
+        temperature: 0.7
+      });
+
+      return response.choices[0].message.content.trim();
+    } catch (error) {
+      console.error('Error generating professional summary:', error);
+      throw new Error(`Failed to generate professional summary: ${error.message}`);
+    }
+  }
+
+  /**
+   * Enhance bullet points for experience/projects
+   * @param {Array} items - Experience or project items
+   * @returns {Array} Enhanced items with improved bullet points
+   */
+  static async enhanceBulletPoints(items) {
+    try {
+      if (!items || items.length === 0) {
+        return [];
+      }
+
+      const enhancedItems = [];
+      
+      for (const item of items) {
+        const itemType = item.job_title ? 'experience' : 'project';
+        const title = item.job_title || item.project_title;
+        const company = item.company || item.organization || '';
+        const description = item.description || '';
+        const technologies = item.technologies_used?.join(', ') || '';
+
+        const prompt = `
+          Enhance the following ${itemType} description into 3-4 strong, action-oriented bullet points for a CV:
+          
+          ${itemType === 'experience' ? `Job Title: ${title}` : `Project: ${title}`}
+          ${company ? `Company/Organization: ${company}` : ''}
+          Current Description: ${description || 'No description provided'}
+          ${technologies ? `Technologies: ${technologies}` : ''}
+          
+          Requirements:
+          - Generate 3-4 bullet points
+          - Start each with action verbs (Developed, Implemented, Led, etc.)
+          - Quantify achievements where possible (numbers, percentages, scale)
+          - Be specific and impactful
+          - Each bullet point should be 1 line (max 100 characters)
+          
+          Return ONLY a JSON array of bullet point strings:
+          ["bullet point 1", "bullet point 2", "bullet point 3"]
+        `;
+
+        const response = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: "You are an expert resume writer. Generate strong, action-oriented bullet points."
+            },
+            {
+              role: "user",
+              content: prompt
+            }
+          ],
+          max_completion_tokens: 300,
+          temperature: 0.7
+        });
+
+        let bulletPoints = [];
+        try {
+          const content = response.choices[0].message.content.trim();
+          // Try to parse JSON array
+          const jsonMatch = content.match(/\[[\s\S]*\]/);
+          if (jsonMatch) {
+            bulletPoints = JSON.parse(jsonMatch[0]);
+          } else {
+            // Fallback: split by newlines and clean up
+            bulletPoints = content.split('\n')
+              .map(line => line.replace(/^[-•*]\s*/, '').trim())
+              .filter(line => line.length > 0)
+              .slice(0, 4);
+          }
+        } catch (parseError) {
+          console.error('Error parsing bullet points:', parseError);
+          // Fallback: use original description as single bullet
+          bulletPoints = description ? [description] : [];
+        }
+
+        enhancedItems.push({
+          ...item,
+          enhancedBulletPoints: bulletPoints
+        });
+      }
+
+      return enhancedItems;
+    } catch (error) {
+      console.error('Error enhancing bullet points:', error);
+      throw new Error(`Failed to enhance bullet points: ${error.message}`);
+    }
+  }
+
+  /**
+   * Generate recommendations for LinkedIn and portfolio
+   * @param {Object} profileData - Candidate profile data
+   * @returns {Object} Recommendations
+   */
+  static async generateProfileRecommendations(profileData) {
+    try {
+      const {
+        linkedin_url,
+        github_url,
+        portfolio_website,
+        behance_url,
+        bio,
+        headline,
+        skills = [],
+        experience = [],
+        projects = []
+      } = profileData;
+
+      const prompt = `
+        Analyze this candidate's profile and provide recommendations for improving their LinkedIn and online portfolio:
+        
+        Current LinkedIn: ${linkedin_url || 'Not provided'}
+        Current GitHub: ${github_url || 'Not provided'}
+        Current Portfolio: ${portfolio_website || 'Not provided'}
+        Current Behance: ${behance_url || 'Not provided'}
+        Current Headline: ${headline || 'Not provided'}
+        Current Bio: ${bio || 'Not provided'}
+        Skills Count: ${skills.length}
+        Experience Count: ${experience.length}
+        Projects Count: ${projects.length}
+        
+        Provide recommendations in JSON format:
+        {
+          "linkedin": {
+            "headline": "Recommended LinkedIn headline",
+            "summary": "Recommended LinkedIn summary (3-4 sentences)",
+            "improvements": ["improvement 1", "improvement 2", "improvement 3"]
+          },
+          "portfolio": {
+            "recommendations": ["recommendation 1", "recommendation 2", "recommendation 3"],
+            "missingElements": ["element 1", "element 2"]
+          },
+          "general": {
+            "strengths": ["strength 1", "strength 2"],
+            "weaknesses": ["weakness 1", "weakness 2"],
+            "actionItems": ["action 1", "action 2", "action 3"]
+          }
+        }
+        
+        Return ONLY valid JSON, nothing else.
+      `;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "You are a career advisor and professional branding expert. Provide actionable recommendations."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        max_completion_tokens: 1000,
+        temperature: 0.7
+      });
+
+      let recommendations;
+      try {
+        const content = response.choices[0].message.content.trim();
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          recommendations = JSON.parse(jsonMatch[0]);
+        } else {
+          recommendations = JSON.parse(content);
+        }
+      } catch (parseError) {
+        console.error('Error parsing recommendations:', parseError);
+        throw new Error('Failed to parse recommendations from AI response');
+      }
+
+      return recommendations;
+    } catch (error) {
+      console.error('Error generating recommendations:', error);
+      throw new Error(`Failed to generate recommendations: ${error.message}`);
+    }
+  }
 }
 
 module.exports = AIAnalysisService;

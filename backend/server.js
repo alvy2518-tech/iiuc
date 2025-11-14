@@ -29,6 +29,7 @@ const interviewRoutes = require('./routes/interview.routes');
 const messagingRoutes = require('./routes/messaging.routes');
 const externalJobsRoutes = require('./routes/externalJobs.routes');
 const courseRoutes = require('./routes/course.routes');
+const cvRoutes = require('./routes/cv.routes');
 
 const API_PREFIX = process.env.API_PREFIX || '/api/v1';
 
@@ -42,6 +43,7 @@ app.use(`${API_PREFIX}/interviews`, interviewRoutes);
 app.use(`${API_PREFIX}/messages`, messagingRoutes);
 app.use(`${API_PREFIX}/external-jobs`, externalJobsRoutes);
 app.use(`${API_PREFIX}/courses`, courseRoutes);
+app.use(`${API_PREFIX}/cv`, cvRoutes);
 
 // Health check
 app.get(`${API_PREFIX}/health`, (req, res) => {

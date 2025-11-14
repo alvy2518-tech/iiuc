@@ -103,9 +103,18 @@ export default function CandidateProfileEditPage() {
   const fetchProfileData = async () => {
     try {
       const userStr = localStorage.getItem("user")
-      if (!userStr) return
+      if (!userStr) {
+        console.error("No user found in localStorage")
+        return
+      }
       
       const user = JSON.parse(userStr)
+      if (!user || !user.id) {
+        console.error("Invalid user data:", user)
+        return
+      }
+
+      console.log("Fetching profile for user:", user.id)
       const response = await profileAPI.getCandidate(user.id)
       
       setProfileData(response.data)
@@ -136,8 +145,27 @@ export default function CandidateProfileEditPage() {
         linkedinUrl: candidateData.linkedin_url || "",
         githubUrl: candidateData.github_url || "",
       })
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to fetch profile:", err)
+      console.error("Error details:", {
+        message: err.message,
+        code: err.code,
+        response: err.response?.data,
+        status: err.response?.status,
+        config: {
+          url: err.config?.url,
+          baseURL: err.config?.baseURL,
+          method: err.config?.method
+        }
+      })
+      
+      if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') {
+        console.error("Network Error - Possible causes:")
+        console.error("1. Backend server not running on http://localhost:5000")
+        console.error("2. CORS issue - check backend ALLOWED_ORIGINS")
+        console.error("3. API URL incorrect - check NEXT_PUBLIC_API_URL")
+        alert("Network Error: Could not connect to backend server. Please ensure the backend is running on http://localhost:5000")
+      }
     } finally {
       setLoadingData(false)
     }
