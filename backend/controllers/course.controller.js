@@ -86,51 +86,59 @@ const addCourseForSkill = async (req, res) => {
       });
     }
 
-    // Check if course already exists
-    const { data: existingCourse } = await supabase
+    // Check if courses already exist for this skill
+    const { data: existingCourses } = await supabase
       .from('candidate_courses')
       .select('*')
       .eq('candidate_id', candidateProfile.id)
       .eq('skill_name', skillName)
-      .eq('skill_level', skillLevel)
-      .single();
+      .eq('skill_level', skillLevel);
 
-    if (existingCourse) {
-      return res.status(400).json({
-        error: 'Bad Request',
-        message: 'Course already exists for this skill'
+    if (existingCourses && existingCourses.length > 0) {
+      return res.json({
+        message: 'Courses already exist for this skill',
+        courses: existingCourses
       });
     }
 
-    // Search YouTube for a video
-    const video = await youtubeService.searchCourseForSkill(skillName, skillLevel);
+    // Search YouTube for videos (1-5 videos)
+    const { learningPath } = req.body;
+    const videos = await youtubeService.searchCourseForSkill(skillName, skillLevel, learningPath, 5);
 
-    // Insert course
-    const { data: course, error: insertError } = await supabase
+    if (!videos || videos.length === 0) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'No videos found for this skill'
+      });
+    }
+
+    // Insert all videos as courses
+    const coursesToInsert = videos.map(video => ({
+      candidate_id: candidateProfile.id,
+      skill_name: skillName,
+      skill_level: skillLevel,
+      phase_number: phaseNumber,
+      youtube_video_id: video.videoId,
+      video_title: video.title,
+      video_description: video.description,
+      thumbnail_url: video.thumbnailUrl,
+      channel_name: video.channelName,
+      duration: video.duration,
+      published_at: video.publishedAt
+    }));
+
+    const { data: courses, error: insertError } = await supabase
       .from('candidate_courses')
-      .insert({
-        candidate_id: candidateProfile.id,
-        skill_name: skillName,
-        skill_level: skillLevel,
-        phase_number: phaseNumber,
-        youtube_video_id: video.videoId,
-        video_title: video.title,
-        video_description: video.description,
-        thumbnail_url: video.thumbnailUrl,
-        channel_name: video.channelName,
-        duration: video.duration,
-        published_at: video.publishedAt
-      })
-      .select()
-      .single();
+      .insert(coursesToInsert)
+      .select();
 
     if (insertError) {
       throw insertError;
     }
 
     res.json({
-      message: 'Course added successfully',
-      course
+      message: `Added ${courses.length} course(s) successfully`,
+      courses
     });
 
   } catch (error) {
@@ -303,11 +311,159 @@ const getArchivedCourses = async (req, res) => {
   }
 };
 
+/**
+ * Auto-populate courses for all skills in roadmap
+ */
+const autoPopulateCourses = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Get candidate profile
+    const { data: candidateProfile, error: candidateError } = await supabase
+      .from('candidate_profiles')
+      .select('id')
+      .eq('user_id', userId)
+      .single();
+
+    if (candidateError || !candidateProfile) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'Candidate profile not found'
+      });
+    }
+
+    // Get current roadmap
+    const { data: roadmap } = await supabase
+      .from('candidate_learning_roadmaps')
+      .select('roadmap_data')
+      .eq('candidate_id', candidateProfile.id)
+      .single();
+
+    if (!roadmap || !roadmap.roadmap_data || !roadmap.roadmap_data.learning_phases) {
+      return res.status(404).json({
+        error: 'Not Found',
+        message: 'No roadmap found. Please generate a roadmap first.'
+      });
+    }
+
+    // Get existing courses
+    const { data: existingCourses } = await supabase
+      .from('candidate_courses')
+      .select('skill_name, skill_level')
+      .eq('candidate_id', candidateProfile.id)
+      .eq('is_archived', false);
+
+    console.log('Auto-populate - Existing courses:', existingCourses?.length || 0);
+
+    const existingSkills = new Set(
+      (existingCourses || []).map(c => `${c.skill_name}-${c.skill_level}`)
+    );
+
+    console.log('Auto-populate - Existing skill keys:', Array.from(existingSkills));
+
+    // Collect all skills from roadmap
+    const skillsToProcess = [];
+    roadmap.roadmap_data.learning_phases.forEach((phase) => {
+      if (phase.skills && Array.isArray(phase.skills)) {
+        phase.skills.forEach((skill) => {
+          const skillKey = `${skill.skill}-${skill.skill_type === 'upgrade' ? skill.target_level : (skill.target_level || 'Intermediate')}`;
+          console.log(`Checking skill: ${skill.skill} -> Key: ${skillKey}, Exists: ${existingSkills.has(skillKey)}`);
+          if (!existingSkills.has(skillKey)) {
+            skillsToProcess.push({
+              skillName: skill.skill,
+              skillLevel: skill.skill_type === 'upgrade' ? skill.target_level : (skill.target_level || 'Intermediate'),
+              phaseNumber: phase.phase,
+              learningPath: skill.learning_path || ''
+            });
+          }
+        });
+      }
+    });
+
+    console.log('Auto-populate - Skills to process:', skillsToProcess.length);
+    console.log('Auto-populate - Skills list:', skillsToProcess.map(s => `${s.skillName} (${s.skillLevel})`));
+
+    if (skillsToProcess.length === 0) {
+      console.log('Auto-populate - All courses already populated');
+      return res.json({
+        message: 'All courses already populated',
+        coursesAdded: 0,
+        skillsProcessed: 0
+      });
+    }
+
+    // Process skills in batches to avoid overwhelming the API
+    const results = [];
+    for (const skill of skillsToProcess) {
+      try {
+        console.log(`Processing skill: ${skill.skillName} (${skill.skillLevel})`);
+        const videos = await youtubeService.searchCourseForSkill(
+          skill.skillName,
+          skill.skillLevel,
+          skill.learningPath,
+          5
+        );
+
+        console.log(`Found ${videos?.length || 0} videos for ${skill.skillName}`);
+
+        if (videos && videos.length > 0) {
+          const coursesToInsert = videos.map(video => ({
+            candidate_id: candidateProfile.id,
+            skill_name: skill.skillName,
+            skill_level: skill.skillLevel,
+            phase_number: skill.phaseNumber,
+            youtube_video_id: video.videoId,
+            video_title: video.title,
+            video_description: video.description,
+            thumbnail_url: video.thumbnailUrl,
+            channel_name: video.channelName,
+            duration: video.duration,
+            published_at: video.publishedAt
+          }));
+
+          const { data: courses, error: insertError } = await supabase
+            .from('candidate_courses')
+            .insert(coursesToInsert)
+            .select();
+
+          if (insertError) {
+            console.error(`Error inserting courses for ${skill.skillName}:`, insertError);
+          } else if (courses) {
+            console.log(`Successfully inserted ${courses.length} courses for ${skill.skillName}`);
+            results.push(...courses);
+          }
+        } else {
+          console.warn(`No videos found for ${skill.skillName}`);
+        }
+      } catch (error) {
+        console.error(`Error adding courses for ${skill.skillName}:`, error);
+        // Continue with next skill
+      }
+    }
+
+    console.log(`Auto-populate complete: ${results.length} courses added`);
+
+    res.json({
+      message: `Auto-populated ${results.length} course(s) for ${skillsToProcess.length} skill(s)`,
+      coursesAdded: results.length,
+      skillsProcessed: skillsToProcess.length
+    });
+
+  } catch (error) {
+    console.error('Auto-populate courses error:', error);
+    res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to auto-populate courses'
+    });
+  }
+};
+
 module.exports = {
   getMyCourses,
   addCourseForSkill,
   updateWatchStatus,
   deleteCourse,
-  getArchivedCourses
+  getArchivedCourses,
+  autoPopulateCourses
 };
 

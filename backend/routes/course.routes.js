@@ -21,6 +21,13 @@ router.get('/my-courses', courseController.getMyCourses);
 router.get('/archived', courseController.getArchivedCourses);
 
 /**
+ * @route   POST /api/v1/courses/auto-populate
+ * @desc    Auto-populate courses for all skills in roadmap
+ * @access  Private (Candidate only)
+ */
+router.post('/auto-populate', courseController.autoPopulateCourses);
+
+/**
  * @route   POST /api/v1/courses/add
  * @desc    Add a course for a specific skill
  * @access  Private (Candidate only)

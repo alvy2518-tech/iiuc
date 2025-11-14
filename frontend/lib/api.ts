@@ -254,8 +254,11 @@ export const coursesAPI = {
   // Get archived courses
   getArchivedCourses: () => api.get('/courses/archived'),
   
+  // Auto-populate courses for all skills in roadmap
+  autoPopulate: () => api.post('/courses/auto-populate'),
+  
   // Add a course for a specific skill
-  addCourse: (data: { skillName: string; skillLevel: string; phaseNumber?: number }) => 
+  addCourse: (data: { skillName: string; skillLevel: string; phaseNumber?: number; learningPath?: string }) => 
     api.post('/courses/add', data),
   
   // Update watch status

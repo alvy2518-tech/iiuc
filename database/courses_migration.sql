@@ -2,7 +2,7 @@
 -- ROADMAP-BASED COURSES - DATABASE SCHEMA
 -- ============================================
 
--- Stores ONE YouTube video per skill for each candidate
+-- Stores multiple YouTube videos (1-5) per skill for each candidate
 CREATE TABLE IF NOT EXISTS candidate_courses (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     candidate_id UUID NOT NULL REFERENCES candidate_profiles(id) ON DELETE CASCADE,
@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS candidate_courses (
     watched_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()),
-    UNIQUE(candidate_id, skill_name, skill_level)
+    UNIQUE(candidate_id, skill_name, skill_level, youtube_video_id) -- Prevent duplicate videos for same skill
 );
 
 -- Indexes for performance
@@ -65,6 +65,32 @@ CREATE POLICY "Candidates can delete own courses" ON candidate_courses
     );
 
 -- Add comments
-COMMENT ON TABLE candidate_courses IS 'Stores roadmap-based learning courses (YouTube videos) for candidates';
+COMMENT ON TABLE candidate_courses IS 'Stores roadmap-based learning courses (YouTube videos) for candidates - allows 1-5 videos per skill';
 COMMENT ON COLUMN candidate_courses.is_archived IS 'Set to true when roadmap changes and AI determines course is no longer needed';
+
+-- ============================================
+-- MIGRATION: Update existing table if it exists
+-- ============================================
+-- If table already exists, drop old constraint and add new one
+DO $$ 
+BEGIN
+    -- Drop old unique constraint if it exists
+    IF EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'candidate_courses_candidate_id_skill_name_skill_level_key'
+    ) THEN
+        ALTER TABLE candidate_courses 
+        DROP CONSTRAINT candidate_courses_candidate_id_skill_name_skill_level_key;
+    END IF;
+    
+    -- Add new unique constraint (allows multiple videos per skill)
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'candidate_courses_candidate_id_skill_name_skill_level_youtube_video_id_key'
+    ) THEN
+        ALTER TABLE candidate_courses 
+        ADD CONSTRAINT candidate_courses_candidate_id_skill_name_skill_level_youtube_video_id_key 
+        UNIQUE(candidate_id, skill_name, skill_level, youtube_video_id);
+    END IF;
+END $$;
 
