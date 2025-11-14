@@ -1797,7 +1797,7 @@ const createOrUpdateJobPreferences = async (req, res) => {
 };
 
 /**
- * Upload resume file
+ * Upload resume file and extract profile data using Gemini API
  */
 const uploadAndParseResume = async (req, res) => {
   try {
@@ -1823,47 +1823,289 @@ const uploadAndParseResume = async (req, res) => {
       });
     }
 
-    // Get candidate profile
-    const { data: candidateProfile, error: candidateError } = await supabase
+    // Check if candidate profile already exists
+    const { data: existingProfile, error: profileCheckError } = await supabase
       .from('candidate_profiles')
       .select('id')
       .eq('user_id', userId)
       .single();
 
-    if (candidateError || !candidateProfile) {
-      return res.status(404).json({
-        error: 'Not Found',
-        message: 'Candidate profile not found'
+    // If profile exists, just save the resume file and return
+    if (existingProfile && !profileCheckError) {
+      const resumeData = file.buffer.toString('base64');
+      
+      const { error: updateError } = await supabase
+        .from('candidate_profiles')
+        .update({
+          resume_file: resumeData,
+          resume_filename: fileName,
+          resume_filetype: fileType,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingProfile.id);
+
+      if (updateError) {
+        console.error('Error saving resume:', updateError);
+        return res.status(500).json({
+          error: 'Internal Server Error',
+          message: 'Failed to save resume'
+        });
+      }
+
+      return res.json({
+        message: 'Resume uploaded successfully. Profile already exists, so only the resume file was updated.',
+        data: {
+          filename: fileName,
+          filetype: fileType,
+          profileExists: true
+        }
       });
     }
 
-    // Save resume file as base64
-    const resumeData = file.buffer.toString('base64');
+    // Extract text from CV
+    let cvText = '';
     
-    // Update candidate profile with resume
-    const { error: updateError } = await supabase
-      .from('candidate_profiles')
-      .update({
-        resume_file: resumeData,
-        resume_filename: fileName,
-        resume_filetype: fileType,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', candidateProfile.id);
-
-    if (updateError) {
-      console.error('Error saving resume:', updateError);
+    try {
+      if (fileType === 'application/pdf') {
+        const pdfData = await pdfParse(file.buffer);
+        cvText = pdfData.text;
+      } else if (fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+        const result = await mammoth.extractRawText({ buffer: file.buffer });
+        cvText = result.value;
+      }
+    } catch (parseError) {
+      console.error('Error parsing CV:', parseError);
       return res.status(500).json({
         error: 'Internal Server Error',
-        message: 'Failed to save resume'
+        message: 'Failed to parse CV file'
       });
+    }
+
+    if (!cvText || cvText.trim().length === 0) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Could not extract text from CV. Please ensure the file is not empty or corrupted.'
+      });
+    }
+
+    // Use Gemini API to extract profile information
+    const axios = require('axios');
+    const GEMINI_API_KEY = 'AIzaSyAjSBdJTSHrF3zqPYMmuMDCOt4sF4N7gnk';
+    
+    const prompt = `Extract structured information from this CV/resume and return ONLY a valid JSON object (no markdown, no code blocks, no extra text). The JSON should have this exact structure:
+
+{
+  "bio": "A brief professional summary (2-3 sentences)",
+  "headline": "Professional title or role",
+  "phone": "Phone number if available",
+  "city": "City name",
+  "country": "Country name",
+  "years_of_experience": number (estimated total years),
+  "current_job_title": "Most recent job title",
+  "current_company": "Most recent company name",
+  "linkedin_url": "LinkedIn URL if mentioned",
+  "github_url": "GitHub URL if mentioned",
+  "portfolio_website": "Portfolio or personal website if mentioned",
+  "skills": [
+    {"skill_name": "skill", "skill_level": "Beginner|Intermediate|Advanced|Expert"}
+  ],
+  "experience": [
+    {
+      "job_title": "title",
+      "company": "company name",
+      "description": "job description",
+      "start_date": "YYYY-MM-DD or YYYY-MM",
+      "end_date": "YYYY-MM-DD or YYYY-MM or null if current",
+      "is_current": boolean
+    }
+  ],
+  "education": [
+    {
+      "degree": "degree name",
+      "field_of_study": "major/field",
+      "institution": "school/university name",
+      "start_date": "YYYY-MM-DD or YYYY-MM",
+      "end_date": "YYYY-MM-DD or YYYY-MM or null if current"
+    }
+  ],
+  "projects": [
+    {
+      "title": "project name",
+      "description": "project description",
+      "technologies": "technologies used",
+      "start_date": "YYYY-MM-DD or YYYY-MM",
+      "end_date": "YYYY-MM-DD or YYYY-MM or null if ongoing"
+    }
+  ],
+  "certifications": [
+    {
+      "name": "certification name",
+      "issuing_organization": "organization",
+      "issue_date": "YYYY-MM-DD or YYYY-MM",
+      "expiry_date": "YYYY-MM-DD or YYYY-MM or null if no expiry"
+    }
+  ]
+}
+
+CV Text:
+${cvText}
+
+Return ONLY the JSON object, nothing else.`;
+
+    let geminiResponse;
+    try {
+      const response = await axios.post(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent',
+        {
+          contents: [
+            {
+              parts: [
+                {
+                  text: prompt
+                }
+              ]
+            }
+          ],
+          generationConfig: {
+            temperature: 0.2,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 8192,
+          }
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': GEMINI_API_KEY
+          }
+        }
+      );
+
+      const generatedText = response.data.candidates[0].content.parts[0].text;
+      
+      // Remove markdown code blocks if present
+      let cleanedText = generatedText.trim();
+      if (cleanedText.startsWith('```json')) {
+        cleanedText = cleanedText.replace(/^```json\s*/, '').replace(/```\s*$/, '');
+      } else if (cleanedText.startsWith('```')) {
+        cleanedText = cleanedText.replace(/^```\s*/, '').replace(/```\s*$/, '');
+      }
+      
+      geminiResponse = JSON.parse(cleanedText);
+      
+    } catch (geminiError) {
+      console.error('Gemini API error:', geminiError.response?.data || geminiError.message);
+      return res.status(500).json({
+        error: 'Internal Server Error',
+        message: 'Failed to analyze CV with AI. Please try again or enter details manually.'
+      });
+    }
+
+    // Create candidate profile
+    const resumeData = file.buffer.toString('base64');
+    
+    const { data: newProfile, error: createError } = await supabaseAdmin
+      .from('candidate_profiles')
+      .insert({
+        user_id: userId,
+        bio: geminiResponse.bio || null,
+        headline: geminiResponse.headline || null,
+        phone: geminiResponse.phone || null,
+        city: geminiResponse.city || null,
+        country: geminiResponse.country || null,
+        years_of_experience: geminiResponse.years_of_experience || 0,
+        current_job_title: geminiResponse.current_job_title || null,
+        current_company: geminiResponse.current_company || null,
+        linkedin_url: geminiResponse.linkedin_url || null,
+        github_url: geminiResponse.github_url || null,
+        portfolio_website: geminiResponse.portfolio_website || null,
+        resume_file: resumeData,
+        resume_filename: fileName,
+        resume_filetype: fileType
+      })
+      .select()
+      .single();
+
+    if (createError) {
+      console.error('Error creating profile:', createError);
+      return res.status(500).json({
+        error: 'Internal Server Error',
+        message: 'Failed to create profile'
+      });
+    }
+
+    // Add skills
+    if (geminiResponse.skills && geminiResponse.skills.length > 0) {
+      const skillsToInsert = geminiResponse.skills.map(skill => ({
+        candidate_id: newProfile.id,
+        skill_name: skill.skill_name,
+        skill_level: skill.skill_level || 'Intermediate'
+      }));
+      
+      await supabaseAdmin.from('candidate_skills').insert(skillsToInsert);
+    }
+
+    // Add experience
+    if (geminiResponse.experience && geminiResponse.experience.length > 0) {
+      const experienceToInsert = geminiResponse.experience.map(exp => ({
+        candidate_id: newProfile.id,
+        job_title: exp.job_title,
+        company: exp.company,
+        description: exp.description,
+        start_date: exp.start_date,
+        end_date: exp.end_date,
+        is_current: exp.is_current || false
+      }));
+      
+      await supabaseAdmin.from('candidate_experience').insert(experienceToInsert);
+    }
+
+    // Add education
+    if (geminiResponse.education && geminiResponse.education.length > 0) {
+      const educationToInsert = geminiResponse.education.map(edu => ({
+        candidate_id: newProfile.id,
+        degree: edu.degree,
+        field_of_study: edu.field_of_study,
+        institution: edu.institution,
+        start_date: edu.start_date,
+        end_date: edu.end_date
+      }));
+      
+      await supabaseAdmin.from('candidate_education').insert(educationToInsert);
+    }
+
+    // Add projects
+    if (geminiResponse.projects && geminiResponse.projects.length > 0) {
+      const projectsToInsert = geminiResponse.projects.map(proj => ({
+        candidate_id: newProfile.id,
+        title: proj.title,
+        description: proj.description,
+        technologies: proj.technologies,
+        start_date: proj.start_date,
+        end_date: proj.end_date
+      }));
+      
+      await supabaseAdmin.from('candidate_projects').insert(projectsToInsert);
+    }
+
+    // Add certifications
+    if (geminiResponse.certifications && geminiResponse.certifications.length > 0) {
+      const certificationsToInsert = geminiResponse.certifications.map(cert => ({
+        candidate_id: newProfile.id,
+        name: cert.name,
+        issuing_organization: cert.issuing_organization,
+        issue_date: cert.issue_date,
+        expiry_date: cert.expiry_date
+      }));
+      
+      await supabaseAdmin.from('candidate_certifications').insert(certificationsToInsert);
     }
 
     res.json({
-      message: 'Resume uploaded successfully',
+      message: 'Profile created successfully from CV',
       data: {
-        filename: fileName,
-        filetype: fileType
+        profile: newProfile,
+        extractedData: geminiResponse
       }
     });
 

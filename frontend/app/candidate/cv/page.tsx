@@ -209,296 +209,264 @@ export default function CVBuilderPage() {
         downloadBtn.setAttribute('disabled', 'true')
       }
 
-      // Create a temporary container with better styling for PDF
+      // Clone the CV content directly
+      const clonedContent = cvRef.current.cloneNode(true) as HTMLElement
+      
+      // Create a temporary container styled exactly like the web version
       const tempContainer = document.createElement('div')
       tempContainer.style.position = 'absolute'
       tempContainer.style.left = '-9999px'
+      tempContainer.style.top = '0'
       tempContainer.style.width = '210mm' // A4 width
-      tempContainer.style.padding = '10mm 15mm' // Top/bottom: 10mm, Left/right: 15mm
       tempContainer.style.backgroundColor = '#ffffff'
-      tempContainer.style.fontFamily = "'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
-      tempContainer.style.boxSizing = 'border-box'
+      tempContainer.style.fontFamily = "'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
+      tempContainer.style.fontSize = '16px'
       
-      // Clone the CV content
-      const clonedContent = cvRef.current.cloneNode(true) as HTMLElement
-      
-      // Apply PDF-specific styles
-      clonedContent.style.width = '100%'
-      clonedContent.style.backgroundColor = '#ffffff'
-      clonedContent.style.color = '#1a1a1a'
-      clonedContent.style.fontSize = '11pt'
-      clonedContent.style.lineHeight = '1.6'
+      // Apply all necessary styles to cloned content
+      clonedContent.style.width = '210mm'
+      clonedContent.style.maxWidth = '210mm'
       clonedContent.style.margin = '0'
-      clonedContent.style.padding = '0'
+      clonedContent.style.backgroundColor = '#ffffff'
+      clonedContent.style.boxShadow = 'none'
+      clonedContent.style.border = 'none'
+      clonedContent.style.borderRadius = '0'
       
-      // Remove Card padding and apply our own
-      const cardElement = clonedContent.querySelector('[class*="Card"]') || clonedContent
-      if (cardElement && cardElement instanceof HTMLElement && cardElement.style) {
-        cardElement.style.setProperty('padding', '0')
-        cardElement.style.setProperty('margin', '0')
-        cardElement.style.setProperty('box-shadow', 'none')
-        cardElement.style.setProperty('border', 'none')
-      }
-      
-      // Style all sections for PDF with better spacing
-      const sections = clonedContent.querySelectorAll('[class*="mb-6"], [class*="mb-4"]')
-      sections.forEach((section: any) => {
-        if (section instanceof HTMLElement && section.style) {
-          section.style.setProperty('margin-bottom', '18px')
-          section.style.setProperty('margin-top', '0')
-          section.style.setProperty('page-break-inside', 'avoid')
-          section.style.setProperty('break-inside', 'avoid')
-        }
-      })
-      
-      // Style the header section specifically
-      const headerSection = clonedContent.querySelector('[class*="border-b"]')
-      if (headerSection && headerSection instanceof HTMLElement && headerSection.style) {
-        headerSection.style.setProperty('margin-bottom', '16px')
-        headerSection.style.setProperty('padding-bottom', '12px')
-      }
-      
-      // Style headers
-      const headers = clonedContent.querySelectorAll('h1, h2')
-      headers.forEach((header: any) => {
-        if (header instanceof HTMLElement && header.style) {
-          if (header.tagName === 'H1') {
-            header.style.setProperty('font-size', '24pt')
-            header.style.setProperty('font-weight', '700')
-            header.style.setProperty('color', '#1a1a1a')
-            header.style.setProperty('margin-top', '0')
-            header.style.setProperty('margin-bottom', '8px')
-            header.style.setProperty('padding-bottom', '8px')
-            header.style.setProperty('border-bottom', '3px solid #633ff3')
-          } else if (header.tagName === 'H2') {
-            header.style.setProperty('font-size', '14pt')
-            header.style.setProperty('font-weight', '600')
-            header.style.setProperty('color', '#633ff3')
-            header.style.setProperty('margin-top', '16px')
-            header.style.setProperty('margin-bottom', '10px')
-            header.style.setProperty('padding-bottom', '5px')
-            header.style.setProperty('border-bottom', '2px solid #e5e7eb')
-            header.style.setProperty('page-break-after', 'avoid')
+      // Ensure all styles are preserved - remove any max-width constraints
+      const allElements = clonedContent.querySelectorAll('*')
+      allElements.forEach((el: any) => {
+        if (el instanceof HTMLElement) {
+          // Keep existing computed styles
+          const computedStyle = window.getComputedStyle(el)
+          
+          // Helper function to check if color is valid (not lab/lch/oklab)
+          const isValidColor = (color: string) => {
+            if (!color || color === 'none' || color === 'transparent') return false
+            // Check for unsupported color formats
+            if (color.includes('lab(') || color.includes('lch(') || color.includes('oklab(') || color.includes('oklch(')) {
+              return false
+            }
+            return true
           }
-        }
-      })
-      
-      // Style contact info
-      const contactInfo = clonedContent.querySelectorAll('[class*="text-sm"]')
-      contactInfo.forEach((el: any) => {
-        if (el instanceof HTMLElement && el.style && el.textContent && (el.textContent.includes('@') || el.textContent.includes('+') || el.textContent.includes(','))) {
-          el.style.setProperty('margin-bottom', '4px')
-          el.style.setProperty('font-size', '10pt')
-          el.style.setProperty('line-height', '1.5')
-        }
-      })
-      
-      // Style paragraphs and text
-      const paragraphs = clonedContent.querySelectorAll('p')
-      paragraphs.forEach((p: any) => {
-        if (p instanceof HTMLElement && p.style) {
-          p.style.setProperty('color', '#374151')
-          p.style.setProperty('font-size', '10.5pt')
-          p.style.setProperty('line-height', '1.6')
-          p.style.setProperty('margin-top', '0')
-          p.style.setProperty('margin-bottom', '8px')
-        }
-      })
-      
-      // Style badges
-      const badges = clonedContent.querySelectorAll('[class*="Badge"], span[class*="bg-"]')
-      badges.forEach((badge: any) => {
-        if (badge instanceof HTMLElement && badge.style) {
-          badge.style.setProperty('background-color', '#f3f4f6')
-          badge.style.setProperty('color', '#1f2937')
-          badge.style.setProperty('padding', '3px 8px')
-          badge.style.setProperty('border-radius', '3px')
-          badge.style.setProperty('font-size', '9pt')
-          badge.style.setProperty('display', 'inline-block')
-          badge.style.setProperty('margin', '2px 4px 2px 0')
-          badge.style.setProperty('vertical-align', 'middle')
-        }
-      })
-      
-      // Style links
-      const links = clonedContent.querySelectorAll('a')
-      links.forEach((link: any) => {
-        if (link instanceof HTMLElement && link.style) {
-          link.style.setProperty('color', '#633ff3')
-          link.style.setProperty('text-decoration', 'none')
-          link.style.setProperty('font-size', '10pt')
-        }
-      })
-      
-      // Style experience/project/education items
-      const items = clonedContent.querySelectorAll('[class*="border-l-4"]')
-      items.forEach((item: any) => {
-        if (item instanceof HTMLElement && item.style) {
-          item.style.setProperty('margin-bottom', '14px')
-          item.style.setProperty('padding-left', '12px')
-          item.style.setProperty('page-break-inside', 'avoid')
-        }
-      })
-      
-      // Style lists
-      const lists = clonedContent.querySelectorAll('ul')
-      lists.forEach((list: any) => {
-        if (list instanceof HTMLElement && list.style) {
-          list.style.setProperty('margin-left', '18px')
-          list.style.setProperty('margin-top', '6px')
-          list.style.setProperty('margin-bottom', '6px')
-          list.style.setProperty('padding-left', '0')
-        }
-      })
-      
-      const listItems = clonedContent.querySelectorAll('li')
-      listItems.forEach((li: any) => {
-        if (li instanceof HTMLElement && li.style) {
-          li.style.setProperty('margin-bottom', '3px')
-          li.style.setProperty('font-size', '10pt')
-          li.style.setProperty('color', '#4b5563')
-          li.style.setProperty('line-height', '1.5')
-        }
-      })
-      
-      // Style date ranges and metadata
-      const dateRanges = clonedContent.querySelectorAll('[class*="text-sm"][class*="text-gray"]')
-      dateRanges.forEach((el: any) => {
-        if (el instanceof HTMLElement && el.style && el.textContent && (el.textContent.includes('Present') || el.textContent.includes('20'))) {
-          el.style.setProperty('font-size', '9.5pt')
-          el.style.setProperty('margin-bottom', '4px')
-        }
-      })
-      
-      // Ensure proper spacing for flex containers
-      const flexContainers = clonedContent.querySelectorAll('[class*="flex"]')
-      flexContainers.forEach((container: any) => {
-        if (container instanceof HTMLElement && container.style) {
-          container.style.setProperty('gap', '8px')
+          
+          // Helper function to convert computed color to rgb if needed
+          const getSafeColor = (color: string) => {
+            if (!isValidColor(color)) {
+              // Return a safe default or try to get the actual rendered color
+              const canvas = document.createElement('canvas')
+              canvas.width = 1
+              canvas.height = 1
+              const ctx = canvas.getContext('2d')
+              if (ctx) {
+                try {
+                  ctx.fillStyle = color
+                  return ctx.fillStyle // This will return rgb/rgba format
+                } catch {
+                  return '' // Return empty if conversion fails
+                }
+              }
+            }
+            return color
+          }
+          
+          // Preserve backgrounds, gradients, colors with safety checks
+          const bgImage = computedStyle.backgroundImage
+          if (bgImage && bgImage !== 'none') {
+            // Handle gradients - convert any lab colors
+            if (bgImage.includes('gradient')) {
+              // For gradients, keep them as is but we'll handle in a different way
+              el.style.backgroundImage = bgImage
+            } else {
+              el.style.backgroundImage = bgImage
+            }
+          }
+          
+          const bgColor = computedStyle.backgroundColor
+          if (bgColor && isValidColor(bgColor)) {
+            el.style.backgroundColor = getSafeColor(bgColor)
+          } else if (bgColor) {
+            // Try to get the actual color from the element
+            const rect = el.getBoundingClientRect()
+            if (rect.width > 0 && rect.height > 0) {
+              el.style.backgroundColor = ''
+              // Keep the original class for now
+            }
+          }
+          
+          const textColor = computedStyle.color
+          if (textColor && isValidColor(textColor)) {
+            el.style.color = getSafeColor(textColor)
+          }
+          
+          // Preserve borders and shadows with safety checks
+          const borderColor = computedStyle.borderColor
+          if (borderColor && isValidColor(borderColor)) {
+            el.style.borderColor = getSafeColor(borderColor)
+          }
+          
+          if (computedStyle.borderWidth && computedStyle.borderWidth !== '0px') {
+            el.style.borderWidth = computedStyle.borderWidth
+            el.style.borderStyle = computedStyle.borderStyle || 'solid'
+          }
+          
+          if (computedStyle.borderRadius && computedStyle.borderRadius !== '0px') {
+            el.style.borderRadius = computedStyle.borderRadius
+          }
+          
+          const boxShadow = computedStyle.boxShadow
+          if (boxShadow && boxShadow !== 'none' && !boxShadow.includes('lab(')) {
+            el.style.boxShadow = boxShadow
+          }
+          
+          // Preserve padding, margin, display
+          if (computedStyle.padding) {
+            el.style.padding = computedStyle.padding
+          }
+          if (computedStyle.margin) {
+            el.style.margin = computedStyle.margin
+          }
+          
+          // Preserve font styles
+          if (computedStyle.fontWeight) {
+            el.style.fontWeight = computedStyle.fontWeight
+          }
+          if (computedStyle.fontSize) {
+            el.style.fontSize = computedStyle.fontSize
+          }
+          if (computedStyle.fontFamily) {
+            el.style.fontFamily = computedStyle.fontFamily
+          }
+          
+          // Ensure proper page breaks
+          el.style.pageBreakInside = 'avoid'
+          el.style.breakInside = 'avoid'
         }
       })
       
       tempContainer.appendChild(clonedContent)
       document.body.appendChild(tempContainer)
       
-      // Generate canvas - html2canvas will handle the rendering
-      // Wrap in try-catch to handle any color parsing errors
-      let canvas
-      try {
-        canvas = await html2canvas(tempContainer, {
-          scale: 2,
-          useCORS: true,
-          logging: false,
-          backgroundColor: '#ffffff',
-          width: tempContainer.scrollWidth,
-          height: tempContainer.scrollHeight,
-          onclone: (clonedDoc) => {
-            // Remove external stylesheets that might contain lab() colors
-            try {
-              const linkTags = clonedDoc.querySelectorAll('link[rel="stylesheet"]')
-              linkTags.forEach((tag) => {
-                tag.remove()
-              })
-              
-              // Process all elements to ensure colors are in supported format
-              const allElements = clonedDoc.querySelectorAll('*')
-              allElements.forEach((el: any) => {
-                if (el.style) {
-                  try {
-                    // Use the cloned document's window for getComputedStyle
-                    const win = clonedDoc.defaultView || (clonedDoc as any).parentWindow
-                    if (win) {
-                      const computed = win.getComputedStyle(el)
-                      
-                      // Convert colors to rgb/hex format (getComputedStyle should already return rgb)
-                      const color = computed.color
-                      const bgColor = computed.backgroundColor
-                      const borderColor = computed.borderColor
-                      
-                      // Only update if the value is valid and not transparent
-                      if (color && !color.includes('lab(') && color !== 'rgba(0, 0, 0, 0)') {
-                        el.style.color = color
-                      }
-                      if (bgColor && !bgColor.includes('lab(') && bgColor !== 'rgba(0, 0, 0, 0)') {
-                        el.style.backgroundColor = bgColor
-                      }
-                      if (borderColor && !borderColor.includes('lab(') && borderColor !== 'rgba(0, 0, 0, 0)') {
-                        el.style.borderColor = borderColor
-                      }
-                    }
-                  } catch (e) {
-                    // Ignore errors for individual elements
+      // Wait a moment for styles to apply
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      // Generate high-quality canvas with error handling
+      const canvas = await html2canvas(tempContainer, {
+        scale: 3, // High quality
+        useCORS: true,
+        allowTaint: false,
+        backgroundColor: '#ffffff',
+        logging: false,
+        width: tempContainer.scrollWidth,
+        height: tempContainer.scrollHeight,
+        windowWidth: tempContainer.scrollWidth,
+        windowHeight: tempContainer.scrollHeight,
+        ignoreElements: (element) => {
+          // Ignore elements that might have problematic colors
+          return false
+        },
+        onclone: (clonedDoc) => {
+          // Final pass: remove any lab() colors that slipped through
+          const allClonedElements = clonedDoc.querySelectorAll('*')
+          allClonedElements.forEach((clonedEl: any) => {
+            if (clonedEl instanceof HTMLElement) {
+              try {
+                // Get inline styles
+                const inlineStyle = clonedEl.style
+                
+                // Check and fix background
+                if (inlineStyle.background && (inlineStyle.background.includes('lab(') || inlineStyle.background.includes('lch('))) {
+                  inlineStyle.background = ''
+                }
+                if (inlineStyle.backgroundColor && (inlineStyle.backgroundColor.includes('lab(') || inlineStyle.backgroundColor.includes('lch('))) {
+                  inlineStyle.backgroundColor = ''
+                }
+                
+                // Check and fix colors
+                if (inlineStyle.color && (inlineStyle.color.includes('lab(') || inlineStyle.color.includes('lch('))) {
+                  inlineStyle.color = '#000000'
+                }
+                
+                // Check and fix border colors
+                if (inlineStyle.borderColor && (inlineStyle.borderColor.includes('lab(') || inlineStyle.borderColor.includes('lch('))) {
+                  inlineStyle.borderColor = ''
+                }
+                
+                // Force specific colors for gradient elements
+                if (clonedEl.classList.contains('pdf-gradient-header') || 
+                    clonedEl.className.includes('gradient')) {
+                  // Set solid fallback colors for gradient elements
+                  if (!inlineStyle.backgroundColor || inlineStyle.backgroundColor.includes('lab(')) {
+                    inlineStyle.backgroundColor = '#633ff3' // Fallback to purple
                   }
                 }
-              })
-            } catch (e) {
-              console.warn('Error processing cloned document:', e)
+              } catch (e) {
+                // Silently ignore any errors
+              }
             }
-          }
-        })
-      } catch (error: any) {
-        // If html2canvas fails due to color parsing, try with simpler options
-        console.warn('html2canvas error, retrying with simplified options:', error)
-        canvas = await html2canvas(tempContainer, {
-          scale: 1.5,
+          })
+        }
+      }).catch(async (error) => {
+        console.warn('High quality render failed, trying with lower quality:', error)
+        // Fallback: try with lower quality settings
+        return await html2canvas(tempContainer, {
+          scale: 2,
           useCORS: false,
-          logging: false,
+          allowTaint: true,
           backgroundColor: '#ffffff',
-          allowTaint: true
+          logging: false,
+          ignoreElements: (element) => false
         })
-      }
-      
+      })
       // Remove temporary container
       document.body.removeChild(tempContainer)
       
-      // Calculate PDF dimensions with proper margins
-      const pdfWidth = 210 // A4 width in mm
-      const pdfHeight = 297 // A4 height in mm
-      const margin = 10 // Top/bottom margin in mm
-      const sideMargin = 15 // Left/right margin in mm
-      const contentWidth = pdfWidth - (sideMargin * 2)
-      const contentHeight = pdfHeight - (margin * 2)
-      
-      // Calculate image dimensions maintaining aspect ratio
-      const imgWidth = contentWidth
+      // Create PDF with proper dimensions
+      const imgWidth = 210 // A4 width in mm
       const imgHeight = (canvas.height * imgWidth) / canvas.width
       
-      // Create PDF with proper margins
-      const pdf = new jsPDF('p', 'mm', 'a4')
+      const pdf = new jsPDF({
+        orientation: imgHeight > imgWidth ? 'portrait' : 'portrait',
+        unit: 'mm',
+        format: 'a4',
+        compress: true
+      })
+      
       const pageHeight = pdf.internal.pageSize.getHeight()
-      const pageWidth = pdf.internal.pageSize.getWidth()
-      
       let heightLeft = imgHeight
-      let position = margin
+      let position = 0
       
-      // Add first page with margins
+      // Add image to PDF - first page
       pdf.addImage(
-        canvas.toDataURL('image/png', 1.0), 
-        'PNG', 
-        sideMargin, 
-        position, 
-        contentWidth, 
-        imgHeight
+        canvas.toDataURL('image/jpeg', 0.95),
+        'JPEG',
+        0,
+        position,
+        imgWidth,
+        imgHeight,
+        undefined,
+        'FAST'
       )
-      heightLeft -= contentHeight
       
-      // Add additional pages if needed
+      heightLeft -= pageHeight
+      
+      // Add additional pages if content is longer than one page
       while (heightLeft > 0) {
-        position = margin - (imgHeight - heightLeft)
+        position = heightLeft - imgHeight
         pdf.addPage()
         pdf.addImage(
-          canvas.toDataURL('image/png', 1.0), 
-          'PNG', 
-          sideMargin, 
-          position, 
-          contentWidth, 
-          imgHeight
+          canvas.toDataURL('image/jpeg', 0.95),
+          'JPEG',
+          0,
+          position,
+          imgWidth,
+          imgHeight,
+          undefined,
+          'FAST'
         )
-        heightLeft -= contentHeight
+        heightLeft -= pageHeight
       }
       
       // Download PDF
-      const fileName = `${profile?.full_name?.replace(/\s+/g, '_') || 'CV'}_Resume.pdf`
+      const fileName = `${profile?.full_name?.replace(/\s+/g, '_') || 'Professional'}_CV.pdf`
       pdf.save(fileName)
       
       // Reset button
@@ -575,6 +543,27 @@ export default function CVBuilderPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       <CommonNavbar />
+      
+      {/* PDF-specific styles */}
+      <style jsx global>{`
+        @media print {
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
+        }
+        
+        /* Ensure gradients render in PDF */
+        .pdf-gradient-header {
+          background: linear-gradient(135deg, #633ff3 0%, #5330d4 50%, #7c3aed 100%) !important;
+        }
+        
+        .pdf-preserve-colors * {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+      `}</style>
       
       <main className="max-w-7xl mx-auto px-8 py-10">
         {/* Header */}
@@ -819,64 +808,129 @@ export default function CVBuilderPage() {
 
           {/* CV Preview */}
           <div className="lg:col-span-2">
-            <Card className="p-8 bg-white shadow-xl" ref={cvRef} style={{ maxWidth: '210mm', margin: '0 auto' }}>
-              {/* Header */}
-              <div className="border-b-4 border-[#633ff3] pb-4 mb-6">
-                <h1 className="text-3xl font-bold text-gray-900 mb-3">{profile.full_name}</h1>
-                <div className="mt-2 text-sm text-gray-600 space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{profile.email}</span>
-                  </div>
-                  {profile.phone_number && (
-                    <div className="flex items-center gap-2">
-                      <span>{profile.phone_number}</span>
-                    </div>
+            <Card className="p-0 bg-white shadow-2xl overflow-hidden border-0 pdf-preserve-colors" ref={cvRef} style={{ maxWidth: '210mm', margin: '0 auto' }}>
+              {/* Modern Header with Gradient */}
+              <div 
+                className="relative pdf-gradient-header bg-gradient-to-br from-[#633ff3] via-[#5330d4] to-[#7c3aed] p-8 text-white overflow-hidden"
+                style={{ 
+                  background: 'linear-gradient(135deg, #633ff3 0%, #5330d4 50%, #7c3aed 100%)',
+                  backgroundColor: '#633ff3' // Fallback solid color
+                }}
+              >
+                {/* Decorative Elements */}
+                <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full -mr-32 -mt-32"></div>
+                <div className="absolute bottom-0 left-0 w-48 h-48 bg-white opacity-5 rounded-full -ml-24 -mb-24"></div>
+                
+                <div className="relative z-10">
+                  <h1 className="text-4xl font-extrabold mb-2 tracking-tight">{profile.full_name}</h1>
+                  {profile.headline && (
+                    <p className="text-lg font-medium text-purple-100 mb-4">{profile.headline}</p>
                   )}
-                  <div className="flex items-center gap-2">
-                    <span>{profile.city}, {profile.country}</span>
+                  {profile.current_job_title && (
+                    <p className="text-base text-purple-100 mb-4">{profile.current_job_title}{profile.current_company && ` at ${profile.current_company}`}</p>
+                  )}
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4 text-sm">
+                    <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2">
+                      <div className="h-8 w-8 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+                        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>
+                          <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
+                        </svg>
+                      </div>
+                      <span className="font-medium truncate">{profile.email}</span>
+                    </div>
+                    
+                    {profile.phone_number && (
+                      <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2">
+                        <div className="h-8 w-8 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+                          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"/>
+                          </svg>
+                        </div>
+                        <span className="font-medium">{profile.phone_number}</span>
+                      </div>
+                    )}
+                    
+                    <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2">
+                      <div className="h-8 w-8 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+                        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd"/>
+                        </svg>
+                      </div>
+                      <span className="font-medium">{profile.city}, {profile.country}</span>
+                    </div>
+                    
+                    {profile.years_of_experience && (
+                      <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2">
+                        <div className="h-8 w-8 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+                          <Briefcase className="h-4 w-4" />
+                        </div>
+                        <span className="font-medium">{profile.years_of_experience} Experience</span>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex flex-wrap gap-4 mt-3">
+                  
+                  {/* Social Links */}
+                  <div className="flex flex-wrap gap-3 mt-5">
                     {profile.linkedin_url && (
-                      <a href={profile.linkedin_url} target="_blank" rel="noopener noreferrer" className="flex items-center text-blue-600 hover:text-blue-800 transition-colors">
-                        <Linkedin className="h-4 w-4 mr-1" />
-                        <span className="text-xs">LinkedIn</span>
+                      <a href={profile.linkedin_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-white/20 backdrop-blur-sm hover:bg-white/30 transition-all rounded-full px-4 py-2 text-sm font-medium">
+                        <Linkedin className="h-4 w-4" />
+                        LinkedIn
                       </a>
                     )}
                     {profile.github_url && (
-                      <a href={profile.github_url} target="_blank" rel="noopener noreferrer" className="flex items-center text-gray-700 hover:text-gray-900 transition-colors">
-                        <Github className="h-4 w-4 mr-1" />
-                        <span className="text-xs">GitHub</span>
+                      <a href={profile.github_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-white/20 backdrop-blur-sm hover:bg-white/30 transition-all rounded-full px-4 py-2 text-sm font-medium">
+                        <Github className="h-4 w-4" />
+                        GitHub
                       </a>
                     )}
                     {profile.portfolio_website && (
-                      <a href={profile.portfolio_website} target="_blank" rel="noopener noreferrer" className="flex items-center text-purple-600 hover:text-purple-800 transition-colors">
-                        <Globe className="h-4 w-4 mr-1" />
-                        <span className="text-xs">Portfolio</span>
+                      <a href={profile.portfolio_website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-white/20 backdrop-blur-sm hover:bg-white/30 transition-all rounded-full px-4 py-2 text-sm font-medium">
+                        <Globe className="h-4 w-4" />
+                        Portfolio
                       </a>
                     )}
                   </div>
                 </div>
               </div>
-
+              
+              {/* Content Area with Modern Styling */}
+              <div className="p-8">
+              
               {/* Professional Summary */}
               {(professionalSummary || profile.bio) && (
-                <div className="mb-6">
-                  <h2 className="text-xl font-bold text-[#633ff3] border-b-2 border-gray-200 pb-2 mb-3">Professional Summary</h2>
-                  <p className="text-sm text-gray-700 leading-relaxed">
-                    {professionalSummary || profile.bio}
-                  </p>
+                <div className="mb-8">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="h-10 w-10 bg-gradient-to-br from-purple-500 to-blue-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <FileText className="h-5 w-5 text-white" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-gray-900">Professional Summary</h2>
+                  </div>
+                  <div className="pl-13">
+                    <p className="text-base text-gray-700 leading-relaxed">
+                      {professionalSummary || profile.bio}
+                    </p>
+                  </div>
                 </div>
               )}
 
               {/* Skills */}
               {skills.length > 0 && (
-                <div className="mb-6">
-                  <h2 className="text-xl font-bold text-[#633ff3] border-b-2 border-gray-200 pb-2 mb-3">Skills</h2>
-                  <div className="flex flex-wrap gap-2">
+                <div className="mb-8">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="h-10 w-10 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Code className="h-5 w-5 text-white" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-gray-900">Technical Skills</h2>
+                  </div>
+                  <div className="pl-13 flex flex-wrap gap-2">
                     {skills.map((skill, idx) => (
-                      <Badge key={idx} variant="secondary" className="text-xs bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors">
-                        {skill.skill_name} <span className="text-gray-500">({skill.skill_level})</span>
-                      </Badge>
+                      <span key={idx} className="px-4 py-2 bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-200 text-gray-800 rounded-full text-sm font-medium hover:shadow-md transition-shadow">
+                        {skill.skill_name}
+                        <span className="ml-2 text-xs text-purple-600 font-semibold">•</span>
+                        <span className="ml-1 text-xs text-gray-600">{skill.skill_level}</span>
+                      </span>
                     ))}
                   </div>
                 </div>
@@ -884,35 +938,60 @@ export default function CVBuilderPage() {
 
               {/* Experience */}
               {getDisplayExperience().length > 0 && (
-                <div className="mb-6">
-                  <h2 className="text-xl font-bold text-[#633ff3] border-b-2 border-gray-200 pb-2 mb-4 flex items-center">
-                    <Briefcase className="h-5 w-5 mr-2" />
-                    Experience
-                  </h2>
-                  <div className="space-y-5">
-                    {getDisplayExperience().map((exp) => (
-                      <div key={exp.id} className="border-l-4 border-[#633ff3] pl-4 pb-2">
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <div className="font-semibold text-gray-900 text-base">{exp.job_title}</div>
-                            <div className="text-sm text-gray-600 font-medium">{exp.company}</div>
+                <div className="mb-8">
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className="h-10 w-10 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Briefcase className="h-5 w-5 text-white" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-gray-900">Professional Experience</h2>
+                  </div>
+                  <div className="space-y-6">
+                    {getDisplayExperience().map((exp, index) => (
+                      <div key={exp.id} className="relative pl-13">
+                        {/* Timeline dot */}
+                        <div className="absolute left-5 top-2 h-3 w-3 rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 border-2 border-white shadow-md"></div>
+                        {/* Timeline line */}
+                        {index < getDisplayExperience().length - 1 && (
+                          <div className="absolute left-[26px] top-5 bottom-0 w-0.5 bg-gradient-to-b from-blue-200 to-transparent"></div>
+                        )}
+                        
+                        <div className="bg-gradient-to-br from-gray-50 to-white border-l-4 border-blue-500 rounded-r-lg p-5 hover:shadow-lg transition-shadow">
+                          <div className="flex justify-between items-start mb-3">
+                            <div className="flex-1">
+                              <h3 className="text-lg font-bold text-gray-900">{exp.job_title}</h3>
+                              <p className="text-base text-blue-600 font-semibold mt-1">{exp.company}</p>
+                              {exp.location && (
+                                <p className="text-sm text-gray-500 mt-1 flex items-center gap-1">
+                                  <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd"/>
+                                  </svg>
+                                  {exp.location}
+                                </p>
+                              )}
+                            </div>
+                            <div className="ml-4 text-right">
+                              <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold whitespace-nowrap">
+                                <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd"/>
+                                </svg>
+                                {formatDate(exp.start_date)} - {exp.is_current ? 'Present' : formatDate(exp.end_date || '')}
+                              </span>
+                            </div>
                           </div>
-                          <div className="text-sm text-gray-500 font-medium">
-                            {formatDate(exp.start_date)} - {exp.is_current ? 'Present' : formatDate(exp.end_date || '')}
-                          </div>
+                          
+                          {exp.enhancedBulletPoints && exp.enhancedBulletPoints.length > 0 ? (
+                            <ul className="space-y-2 mt-3">
+                              {exp.enhancedBulletPoints.map((bullet, idx) => (
+                                <li key={idx} className="flex items-start gap-2 text-sm text-gray-700 leading-relaxed">
+                                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500 mt-2 flex-shrink-0"></span>
+                                  <span>{bullet}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : exp.description && (
+                            <p className="text-sm text-gray-700 mt-3 leading-relaxed">{exp.description}</p>
+                          )}
                         </div>
-                        {exp.location && (
-                          <div className="text-xs text-gray-500 mb-3">{exp.location}</div>
-                        )}
-                        {exp.enhancedBulletPoints && exp.enhancedBulletPoints.length > 0 ? (
-                          <ul className="text-sm text-gray-700 list-disc list-inside mt-2 space-y-1">
-                            {exp.enhancedBulletPoints.map((bullet, idx) => (
-                              <li key={idx} className="leading-relaxed">{bullet}</li>
-                            ))}
-                          </ul>
-                        ) : exp.description && (
-                          <p className="text-sm text-gray-700 mt-2 leading-relaxed">{exp.description}</p>
-                        )}
                       </div>
                     ))}
                   </div>
@@ -921,48 +1000,72 @@ export default function CVBuilderPage() {
 
               {/* Projects */}
               {getDisplayProjects().length > 0 && (
-                <div className="mb-6">
-                  <h2 className="text-xl font-bold text-[#633ff3] border-b-2 border-gray-200 pb-2 mb-4 flex items-center">
-                    <Code className="h-5 w-5 mr-2" />
-                    Projects
-                  </h2>
-                  <div className="space-y-5">
-                    {getDisplayProjects().map((project) => (
-                      <div key={project.id} className="border-l-4 border-[#633ff3] pl-4 pb-2">
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <div className="font-semibold text-gray-900 text-base">{project.project_title}</div>
-                            {project.organization && (
-                              <div className="text-sm text-gray-600 font-medium">{project.organization}</div>
-                            )}
+                <div className="mb-8">
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className="h-10 w-10 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Code className="h-5 w-5 text-white" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-gray-900">Featured Projects</h2>
+                  </div>
+                  <div className="space-y-6">
+                    {getDisplayProjects().map((project, index) => (
+                      <div key={project.id} className="relative pl-13">
+                        {/* Timeline dot */}
+                        <div className="absolute left-5 top-2 h-3 w-3 rounded-full bg-gradient-to-br from-orange-500 to-red-500 border-2 border-white shadow-md"></div>
+                        {/* Timeline line */}
+                        {index < getDisplayProjects().length - 1 && (
+                          <div className="absolute left-[26px] top-5 bottom-0 w-0.5 bg-gradient-to-b from-orange-200 to-transparent"></div>
+                        )}
+                        
+                        <div className="bg-gradient-to-br from-orange-50 to-white border-l-4 border-orange-500 rounded-r-lg p-5 hover:shadow-lg transition-shadow">
+                          <div className="flex justify-between items-start mb-3">
+                            <div className="flex-1">
+                              <h3 className="text-lg font-bold text-gray-900">{project.project_title}</h3>
+                              {project.organization && (
+                                <p className="text-base text-orange-600 font-semibold mt-1">{project.organization}</p>
+                              )}
+                              <p className="text-sm text-gray-600 mt-1">{project.project_type}</p>
+                            </div>
+                            <div className="ml-4 text-right">
+                              <span className="inline-flex items-center gap-1 px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-semibold whitespace-nowrap">
+                                <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd"/>
+                                </svg>
+                                {formatDate(project.start_date)} - {project.is_ongoing ? 'Ongoing' : formatDate(project.end_date || '')}
+                              </span>
+                            </div>
                           </div>
-                          <div className="text-sm text-gray-500 font-medium">
-                            {formatDate(project.start_date)} - {project.is_ongoing ? 'Ongoing' : formatDate(project.end_date || '')}
-                          </div>
+                          
+                          {project.technologies_used && project.technologies_used.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mb-3">
+                              {project.technologies_used.map((tech, idx) => (
+                                <span key={idx} className="px-3 py-1 bg-white border border-orange-200 text-gray-700 rounded-md text-xs font-medium">
+                                  {tech}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          
+                          {project.enhancedBulletPoints && project.enhancedBulletPoints.length > 0 ? (
+                            <ul className="space-y-2 mt-3">
+                              {project.enhancedBulletPoints.map((bullet, idx) => (
+                                <li key={idx} className="flex items-start gap-2 text-sm text-gray-700 leading-relaxed">
+                                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-orange-500 mt-2 flex-shrink-0"></span>
+                                  <span>{bullet}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-sm text-gray-700 mt-3 leading-relaxed">{project.description}</p>
+                          )}
+                          
+                          {project.project_url && (
+                            <a href={project.project_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-3 text-sm text-orange-600 hover:text-orange-700 font-semibold hover:underline">
+                              <ExternalLink className="h-4 w-4" />
+                              View Project
+                            </a>
+                          )}
                         </div>
-                        {project.technologies_used && project.technologies_used.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mb-3">
-                            {project.technologies_used.map((tech, idx) => (
-                              <Badge key={idx} variant="outline" className="text-xs bg-gray-50">
-                                {tech}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
-                        {project.enhancedBulletPoints && project.enhancedBulletPoints.length > 0 ? (
-                          <ul className="text-sm text-gray-700 list-disc list-inside mt-2 space-y-1">
-                            {project.enhancedBulletPoints.map((bullet, idx) => (
-                              <li key={idx} className="leading-relaxed">{bullet}</li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="text-sm text-gray-700 mt-2 leading-relaxed">{project.description}</p>
-                        )}
-                        {project.project_url && (
-                          <a href={project.project_url} target="_blank" rel="noopener noreferrer" className="text-xs text-[#633ff3] hover:text-[#5330d4] hover:underline mt-2 inline-flex items-center font-medium">
-                            View Project <ExternalLink className="h-3 w-3 ml-1" />
-                          </a>
-                        )}
                       </div>
                     ))}
                   </div>
@@ -971,30 +1074,52 @@ export default function CVBuilderPage() {
 
               {/* Education */}
               {education.length > 0 && (
-                <div className="mb-6">
-                  <h2 className="text-xl font-bold text-[#633ff3] border-b-2 border-gray-200 pb-2 mb-4 flex items-center">
-                    <GraduationCap className="h-5 w-5 mr-2" />
-                    Education
-                  </h2>
-                  <div className="space-y-4">
-                    {education.map((edu) => (
-                      <div key={edu.id} className="border-l-4 border-[#633ff3] pl-4 pb-2">
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <div className="font-semibold text-gray-900 text-base">{edu.degree}</div>
-                            <div className="text-sm text-gray-600 font-medium">{edu.institution}</div>
-                            <div className="text-xs text-gray-500 mt-1">{edu.field_of_study}</div>
+                <div className="mb-8">
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className="h-10 w-10 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <GraduationCap className="h-5 w-5 text-white" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-gray-900">Education</h2>
+                  </div>
+                  <div className="space-y-6">
+                    {education.map((edu, index) => (
+                      <div key={edu.id} className="relative pl-13">
+                        {/* Timeline dot */}
+                        <div className="absolute left-5 top-2 h-3 w-3 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 border-2 border-white shadow-md"></div>
+                        {/* Timeline line */}
+                        {index < education.length - 1 && (
+                          <div className="absolute left-[26px] top-5 bottom-0 w-0.5 bg-gradient-to-b from-green-200 to-transparent"></div>
+                        )}
+                        
+                        <div className="bg-gradient-to-br from-green-50 to-white border-l-4 border-green-500 rounded-r-lg p-5 hover:shadow-lg transition-shadow">
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="flex-1">
+                              <h3 className="text-lg font-bold text-gray-900">{edu.degree}</h3>
+                              <p className="text-base text-green-600 font-semibold mt-1">{edu.institution}</p>
+                              <p className="text-sm text-gray-600 mt-1">{edu.field_of_study}</p>
+                            </div>
+                            <div className="ml-4 text-right">
+                              <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold whitespace-nowrap">
+                                <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd"/>
+                                </svg>
+                                {formatDate(edu.start_date)} - {edu.is_current ? 'Present' : formatDate(edu.end_date || '')}
+                              </span>
+                            </div>
                           </div>
-                          <div className="text-sm text-gray-500 font-medium">
-                            {formatDate(edu.start_date)} - {edu.is_current ? 'Present' : formatDate(edu.end_date || '')}
-                          </div>
+                          
+                          {edu.grade && (
+                            <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 bg-white border border-green-200 rounded-md">
+                              <Award className="h-4 w-4 text-green-600" />
+                              <span className="text-sm font-semibold text-gray-700">Grade:</span>
+                              <span className="text-sm text-gray-900">{edu.grade}</span>
+                            </div>
+                          )}
+                          
+                          {edu.achievements && (
+                            <p className="text-sm text-gray-700 mt-3 leading-relaxed">{edu.achievements}</p>
+                          )}
                         </div>
-                        {edu.grade && (
-                          <div className="text-sm text-gray-700 mt-2 font-medium">Grade: <span className="font-normal">{edu.grade}</span></div>
-                        )}
-                        {edu.achievements && (
-                          <p className="text-sm text-gray-700 mt-2 leading-relaxed">{edu.achievements}</p>
-                        )}
                       </div>
                     ))}
                   </div>
@@ -1003,28 +1128,48 @@ export default function CVBuilderPage() {
 
               {/* Certifications */}
               {certifications.length > 0 && (
-                <div className="mb-6">
-                  <h2 className="text-xl font-bold text-[#633ff3] border-b-2 border-gray-200 pb-2 mb-4 flex items-center">
-                    <Award className="h-5 w-5 mr-2" />
-                    Certifications
-                  </h2>
+                <div className="mb-8">
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className="h-10 w-10 bg-gradient-to-br from-yellow-500 to-amber-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Award className="h-5 w-5 text-white" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-gray-900">Certifications & Awards</h2>
+                  </div>
                   <div className="space-y-4">
                     {certifications.map((cert) => (
-                      <div key={cert.id} className="border-l-4 border-[#633ff3] pl-4 pb-2">
-                        <div className="font-semibold text-gray-900 text-base">{cert.certification_name}</div>
-                        <div className="text-sm text-gray-600 font-medium mt-1">{cert.issuing_organization}</div>
-                        <div className="text-xs text-gray-500 mt-2">
-                          Issued: {formatDate(cert.issue_date)}
-                          {cert.expiry_date && ` • Expires: ${formatDate(cert.expiry_date)}`}
+                      <div key={cert.id} className="pl-13">
+                        <div className="bg-gradient-to-br from-yellow-50 to-white border-l-4 border-yellow-500 rounded-r-lg p-4 hover:shadow-lg transition-shadow">
+                          <div className="flex items-start gap-3">
+                            <div className="h-12 w-12 bg-yellow-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                              <Award className="h-6 w-6 text-yellow-600" />
+                            </div>
+                            <div className="flex-1">
+                              <h3 className="text-base font-bold text-gray-900">{cert.certification_name}</h3>
+                              <p className="text-sm text-yellow-600 font-semibold mt-1">{cert.issuing_organization}</p>
+                              <div className="flex items-center gap-4 mt-2 text-xs text-gray-600">
+                                <span className="flex items-center gap-1">
+                                  <CheckCircle2 className="h-3 w-3 text-green-500" />
+                                  Issued: {formatDate(cert.issue_date)}
+                                </span>
+                                {cert.expiry_date && (
+                                  <span>Expires: {formatDate(cert.expiry_date)}</span>
+                                )}
+                              </div>
+                              {cert.credential_id && (
+                                <p className="text-xs text-gray-500 mt-2 font-mono bg-gray-100 inline-block px-2 py-1 rounded">
+                                  ID: {cert.credential_id}
+                                </p>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        {cert.credential_id && (
-                          <div className="text-xs text-gray-500 mt-1">Credential ID: <span className="font-mono">{cert.credential_id}</span></div>
-                        )}
                       </div>
                     ))}
                   </div>
                 </div>
               )}
+              
+              </div>
             </Card>
           </div>
         </div>

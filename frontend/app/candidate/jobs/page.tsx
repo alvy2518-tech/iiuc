@@ -909,10 +909,32 @@ export default function BrowseJobsPage() {
                   return (
                     <Card
                       key={job.id}
-                      className="p-6 bg-white border border-gray-200 hover:shadow-lg transition-shadow"
+                      className="p-6 bg-white border border-gray-200 hover:shadow-lg transition-shadow relative"
                     >
-                      {/* Top Section: Label and Match Percentage */}
-                      <div className="mb-3 flex items-center justify-between gap-2 flex-wrap">
+                      {/* Compatibility Score Badge - Top Right Corner */}
+                      {match && (
+                        <div className="absolute top-4 right-4">
+                          <div className={`flex flex-col items-end gap-1`}>
+                            {/* Main Score Badge */}
+                            <div className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xl font-bold shadow-lg border-2 ${getMatchColor(match.matchPercentage)}`}>
+                              <Sparkles className="h-5 w-5" />
+                              <span>{match.matchPercentage}%</span>
+                            </div>
+                            {/* Skill Match Detail */}
+                            {match.skillsMatch && (
+                              <div className="text-xs text-gray-600 bg-white px-3 py-1.5 rounded-lg shadow-sm border border-gray-200 font-medium">
+                                <span className="text-green-600">{match.skillsMatch.matched.length}</span>
+                                <span className="text-gray-400 mx-1">/</span>
+                                <span className="text-gray-700">{match.skillsMatch.matched.length + match.skillsMatch.missing.length}</span>
+                                <span className="ml-1">skills match</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Top Section: Label */}
+                      <div className="mb-3 flex items-center justify-between gap-2 flex-wrap pr-36">
                         <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-[#633ff3]/10 text-[#633ff3]">
                           {getJobTypeLabel()}
                         </span>
@@ -929,22 +951,6 @@ export default function BrowseJobsPage() {
                             <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
                               <ExternalLink className="h-3 w-3" />
                               <span>External</span>
-                            </div>
-                          )}
-                          
-                          {/* Match Percentage Badge */}
-                          {match && (
-                            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold border ${getMatchColor(match.matchPercentage)}`}>
-                              <Sparkles className="h-3.5 w-3.5" />
-                              {match.matchPercentage}% Match
-                            </div>
-                          )}
-                          
-                          {/* AI Analysis Score Badge */}
-                          {job.ai_analysis_score !== null && job.ai_analysis_score !== undefined && (
-                            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold bg-purple-50 text-purple-700 border border-purple-200">
-                              <TrendingUp className="h-3.5 w-3.5" />
-                              AI: {job.ai_analysis_score}%
                             </div>
                           )}
                         </div>

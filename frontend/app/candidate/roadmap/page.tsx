@@ -22,11 +22,15 @@ import {
   BarChart3,
   Lightbulb,
   Code,
-  Rocket
+  Rocket,
+  Edit3,
+  PlayCircle
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { savedJobsAPI } from "@/lib/api"
 import { CommonNavbar } from "@/components/common-navbar"
 import { cn } from "@/lib/utils"
@@ -38,6 +42,10 @@ export default function LearningRoadmapPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
+  const [customDuration, setCustomDuration] = useState<string>("")
+  const [durationUnit, setDurationUnit] = useState<string>("months")
+  const [isEditingDuration, setIsEditingDuration] = useState(false)
+  const [generatingCustom, setGeneratingCustom] = useState(false)
 
   useEffect(() => {
     fetchRoadmap()
@@ -54,6 +62,79 @@ export default function LearningRoadmapPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const generateCustomRoadmap = async () => {
+    if (!customDuration || isNaN(Number(customDuration)) || Number(customDuration) <= 0) {
+      alert("Please enter a valid duration")
+      return
+    }
+
+    try {
+      setGeneratingCustom(true)
+      setError(null)
+      
+      // Convert duration to months for the API
+      let durationInMonths = Number(customDuration)
+      if (durationUnit === "weeks") {
+        durationInMonths = durationInMonths / 4
+      } else if (durationUnit === "years") {
+        durationInMonths = durationInMonths * 12
+      }
+
+      // For now, we'll fetch the roadmap and adjust it client-side
+      // In a production app, you'd send the custom duration to the API
+      const response = await savedJobsAPI.getLearningRoadmap()
+      const originalRoadmap = response.data.roadmap
+      
+      // Adjust the time estimates based on custom duration
+      const adjustedRoadmap = adjustRoadmapDuration(originalRoadmap, durationInMonths)
+      
+      setRoadmap(adjustedRoadmap)
+      setIsEditingDuration(false)
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Failed to generate custom roadmap")
+    } finally {
+      setGeneratingCustom(false)
+    }
+  }
+
+  const adjustRoadmapDuration = (originalRoadmap: any, targetMonths: number) => {
+    // Extract current duration estimate
+    const currentEstimate = originalRoadmap.total_time_estimate || "6-12 months"
+    const currentMonths = parseInt(currentEstimate.split('-')[1] || "12")
+    
+    const scaleFactor = targetMonths / currentMonths
+    
+    // Create adjusted roadmap
+    const adjusted = {
+      ...originalRoadmap,
+      total_time_estimate: `${Math.round(targetMonths * 0.8)}-${Math.round(targetMonths)} ${targetMonths > 12 ? 'months' : 'months'}`,
+      learning_phases: originalRoadmap.learning_phases?.map((phase: any) => {
+        // Adjust phase duration
+        const phaseDuration = phase.duration || "4 weeks"
+        const phaseWeeks = parseInt(phaseDuration.split(' ')[0] || "4")
+        const newWeeks = Math.round(phaseWeeks * scaleFactor)
+        
+        return {
+          ...phase,
+          duration: `${newWeeks} weeks`,
+          skills: phase.skills?.map((skill: any) => {
+            // Adjust skill time estimate
+            const skillTime = skill.time_estimate || "2 weeks"
+            const skillWeeks = parseInt(skillTime.split(' ')[0] || "2")
+            const newSkillWeeks = Math.max(1, Math.round(skillWeeks * scaleFactor))
+            
+            return {
+              ...skill,
+              time_estimate: `${newSkillWeeks} ${newSkillWeeks === 1 ? 'week' : 'weeks'}`
+            }
+          })
+        }
+      })
+    }
+    
+    return adjusted
   }
 
   const getDifficultyColor = (difficulty: string) => {
@@ -347,6 +428,96 @@ ROADMAP OVERVIEW
             </div>
           </div>
         </div>
+
+        {/* Custom Duration Editor */}
+        <Card className="mb-8 border-2 border-blue-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-blue-600 to-purple-600 px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="h-8 w-8 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
+                  <Clock className="h-4 w-4 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">Customize Learning Duration</h3>
+                  <p className="text-xs text-blue-100">Adjust the roadmap to fit your timeline</p>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsEditingDuration(!isEditingDuration)}
+                className="text-white hover:bg-white/20 border border-white/30"
+              >
+                <Edit3 className="h-4 w-4 mr-2" />
+                {isEditingDuration ? 'Cancel' : 'Edit Duration'}
+              </Button>
+            </div>
+          </div>
+          
+          {isEditingDuration && (
+            <div className="p-6 bg-gradient-to-br from-blue-50 to-white">
+              <div className="max-w-2xl">
+                <p className="text-sm text-gray-600 mb-4">
+                  Set your preferred learning timeframe, and we'll adjust the roadmap phases and skill timelines accordingly.
+                </p>
+                <div className="flex items-end space-x-4">
+                  <div className="flex-1">
+                    <Label htmlFor="duration" className="text-sm font-semibold text-gray-700 mb-2 block">
+                      Target Duration
+                    </Label>
+                    <Input
+                      id="duration"
+                      type="number"
+                      min="1"
+                      placeholder="Enter duration"
+                      value={customDuration}
+                      onChange={(e) => setCustomDuration(e.target.value)}
+                      className="h-11 text-lg"
+                    />
+                  </div>
+                  <div className="w-40">
+                    <Label htmlFor="unit" className="text-sm font-semibold text-gray-700 mb-2 block">
+                      Time Unit
+                    </Label>
+                    <select
+                      id="unit"
+                      value={durationUnit}
+                      onChange={(e) => setDurationUnit(e.target.value)}
+                      className="w-full h-11 px-3 border-2 border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="weeks">Weeks</option>
+                      <option value="months">Months</option>
+                      <option value="years">Years</option>
+                    </select>
+                  </div>
+                  <Button
+                    onClick={generateCustomRoadmap}
+                    disabled={generatingCustom || !customDuration}
+                    className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white h-11 px-6 shadow-lg"
+                  >
+                    {generatingCustom ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <PlayCircle className="h-4 w-4 mr-2" />
+                        Apply & Generate
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <div className="mt-4 p-3 bg-blue-100 border border-blue-200 rounded-lg">
+                  <p className="text-xs text-blue-800">
+                    <strong>Tip:</strong> A realistic timeframe for most career transitions is 6-12 months with consistent daily learning. 
+                    Shorter durations require intensive study, while longer periods allow for more gradual progress.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </Card>
 
         {/* Key Metrics Dashboard */}
         <div className="grid grid-cols-4 gap-6 mb-12">
