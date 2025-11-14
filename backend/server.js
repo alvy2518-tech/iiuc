@@ -32,7 +32,26 @@ const externalJobsRoutes = require('./routes/externalJobs.routes');
 const courseRoutes = require('./routes/course.routes');
 const cvRoutes = require('./routes/cv.routes');
 const videoCallRoutes = require('./routes/videoCall.routes');
-const headshotRoutes = require('./routes/headshot.routes');
+const adminRoutes = require('./routes/admin.routes');
+
+// Try to load headshot routes, but make it optional
+// Headshot feature requires sharp which may not work on all systems
+// Temporarily disabled due to sharp native module issues on Windows
+let headshotRoutesAvailable = false;
+let headshotRoutes = express.Router(); // Empty router by default
+
+// Uncomment below to enable headshot feature once sharp is fixed
+/*
+try {
+  headshotRoutes = require('./routes/headshot.routes');
+  headshotRoutesAvailable = true;
+  console.log('✅ Headshot routes loaded');
+} catch (error) {
+  console.warn('⚠️  Headshot routes not available - feature disabled:', error.message);
+  headshotRoutesAvailable = false;
+}
+*/
+console.log('⚠️  Headshot feature temporarily disabled - sharp module issue');
 
 const API_PREFIX = process.env.API_PREFIX || '/api/v1';
 
@@ -48,7 +67,14 @@ app.use(`${API_PREFIX}/external-jobs`, externalJobsRoutes);
 app.use(`${API_PREFIX}/courses`, courseRoutes);
 app.use(`${API_PREFIX}/cv`, cvRoutes);
 app.use(`${API_PREFIX}/video-calls`, videoCallRoutes);
-app.use(`${API_PREFIX}/headshots`, headshotRoutes);
+// Register headshot routes (currently disabled - returns 404)
+app.use(`${API_PREFIX}/headshots`, (req, res) => {
+  res.status(503).json({ 
+    error: 'Service Unavailable', 
+    message: 'Headshot feature temporarily unavailable - sharp module issue' 
+  });
+});
+app.use(`${API_PREFIX}/admin`, adminRoutes);
 
 // Health check
 app.get(`${API_PREFIX}/health`, (req, res) => {

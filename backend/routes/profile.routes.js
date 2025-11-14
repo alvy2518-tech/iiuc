@@ -2,8 +2,36 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const profileController = require('../controllers/profile.controller');
-const headshotController = require('../controllers/headshot.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
+
+// Try to load headshot controller, but make it optional (requires sharp which may fail)
+let headshotController = null;
+let headshotControllerError = null;
+
+function getHeadshotController() {
+  if (headshotController) return headshotController;
+  if (headshotControllerError) {
+    return {
+      generateHeadshot: (req, res) => res.status(503).json({ error: 'Headshot feature unavailable - missing dependencies' }),
+      getHeadshotHistory: (req, res) => res.status(503).json({ error: 'Headshot feature unavailable - missing dependencies' }),
+      deleteHeadshot: (req, res) => res.status(503).json({ error: 'Headshot feature unavailable - missing dependencies' })
+    };
+  }
+  
+  try {
+    headshotController = require('../controllers/headshot.controller');
+    return headshotController;
+  } catch (error) {
+    console.warn('⚠️  Headshot controller not available in profile routes:', error.message);
+    headshotControllerError = error;
+    return {
+      generateHeadshot: (req, res) => res.status(503).json({ error: 'Headshot feature unavailable - missing dependencies' }),
+      getHeadshotHistory: (req, res) => res.status(503).json({ error: 'Headshot feature unavailable - missing dependencies' }),
+      deleteHeadshot: (req, res) => res.status(503).json({ error: 'Headshot feature unavailable - missing dependencies' })
+    };
+  }
+}
+
 const { validate } = require('../middleware/validate.middleware');
 const {
   recruiterProfileSchema,
@@ -356,7 +384,7 @@ router.post(
   authenticate,
   authorize('candidate'),
   imageUpload.single('image'),
-  headshotController.generateHeadshot
+  (req, res) => getHeadshotController().generateHeadshot(req, res)
 );
 
 // GET /api/v1/profiles/candidate/headshots/history - Get headshot history
@@ -364,7 +392,7 @@ router.get(
   '/candidate/headshots/history',
   authenticate,
   authorize('candidate'),
-  headshotController.getHeadshotHistory
+  (req, res) => getHeadshotController().getHeadshotHistory(req, res)
 );
 
 // DELETE /api/v1/profiles/candidate/headshots/:headshotId - Delete headshot
@@ -372,7 +400,7 @@ router.delete(
   '/candidate/headshots/:headshotId',
   authenticate,
   authorize('candidate'),
-  headshotController.deleteHeadshot
+  (req, res) => getHeadshotController().deleteHeadshot(req, res)
 );
 
 module.exports = router;

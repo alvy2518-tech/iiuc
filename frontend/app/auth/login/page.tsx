@@ -38,6 +38,8 @@ export default function LoginPage() {
         router.push("/candidate/dashboard")
       } else if (role === "recruiter") {
         router.push("/recruiter/dashboard")
+      } else if (role === "admin") {
+        router.push("/admin/dashboard")
       }
     } else {
       // Not logged in, show the page
@@ -62,6 +64,12 @@ export default function LoginPage() {
         
         const role = response.data.user.role
         
+        // Redirect admin directly to admin dashboard
+        if (role === "admin") {
+          window.location.href = "/admin/dashboard"
+          return
+        }
+        
         // Check if profile is complete
         if (role === "candidate") {
           try {
@@ -75,7 +83,7 @@ export default function LoginPage() {
             console.log("Profile check failed, redirecting to setup")
             window.location.href = "/candidate/profile/setup"
           }
-        } else {
+        } else if (role === "recruiter") {
           try {
             const profileResponse = await profileAPI.getRecruiter(response.data.user.id)
             if (!profileResponse.data.recruiterProfile) {

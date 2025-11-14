@@ -102,6 +102,15 @@ body {
   border: 1px solid hsl(var(--color-border));
 }
 
+/* Override card foreground color for gradient cards */
+.bg-gradient-to-br {
+  color: inherit !important;
+}
+
+.bg-gradient-to-br * {
+  color: inherit !important;
+}
+
 /* Glassmorphism utility - Dark mode: deep purple with blur */
 .dark .glass {
   background: rgba(23, 20, 31, 0.85); /* #17141f with some transparency - matches dark card color */
@@ -170,40 +179,72 @@ body {
   scrollbar-width: none;
 }
 
+/* Text Selection Styling */
+::selection {
+  background-color: #633ff3;
+  color: #ffffff;
+}
+
+::-moz-selection {
+  background-color: #633ff3;
+  color: #ffffff;
+}
+
+.dark ::selection {
+  background-color: #633ff3;
+  color: #ffffff;
+}
+
+.dark ::-moz-selection {
+  background-color: #633ff3;
+  color: #ffffff;
+}
+
 /* Custom Select Dropdown Option Styling */
 select {
   color-scheme: light;
+  color: #171a26 !important;
+  background-color: #ffffff !important;
+}
+
+select:focus {
+  outline: 2px solid #633ff3;
+  outline-offset: 2px;
 }
 
 .dark select {
   color-scheme: dark;
+  color: #f2f1f5 !important;
+  background-color: #17141f !important;
 }
 
 select option {
-  background-color: rgba(249, 248, 253, 0.25);
-  color: #171a26;
+  background-color: #ffffff !important;
+  color: #171a26 !important;
   padding: 10px 12px;
   font-weight: 500;
 }
 
 .dark select option {
-  background-color: #17141f;
-  color: #f2f1f5;
+  background-color: #17141f !important;
+  color: #f2f1f5 !important;
 }
 
 select option:checked,
-select option:focus {
-  background: linear-gradient(#633ff3, #633ff3);
+select option:focus,
+select option[selected] {
   background-color: #633ff3 !important;
-  color: white !important;
+  color: #ffffff !important;
 }
 
 select option:hover {
-  background-color: #eeebf9;
+  background-color: #eeebf9 !important;
+  color: #171a26 !important;
 }
 
 .dark select option:hover {
-  background-color: #1d1a26;
+  background-color: #1d1a26 !important;
+  color: #f2f1f5 !important;
 }
 
 /* Prevent header flash/blink on page navigation */

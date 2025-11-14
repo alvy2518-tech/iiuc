@@ -304,3 +304,18 @@ export const videoCallAPI = {
     api.get(`/video-calls/conversation/${conversationId}/history`),
 };
 
+// Admin API
+export const adminAPI = {
+  // Register new admin (requires admin role)
+  registerAdmin: (data: { email: string; password: string; fullName: string }) =>
+    api.post('/admin/register', data),
+  
+  // Get dashboard analytics
+  getDashboardAnalytics: () =>
+    api.get('/admin/dashboard'),
+  
+  // Get detailed analytics with AI insights
+  getDetailedAnalytics: (period?: string) =>
+    api.get('/admin/analytics', { params: { period } }),
+};
+
