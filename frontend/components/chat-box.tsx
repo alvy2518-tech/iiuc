@@ -64,6 +64,11 @@ export function ChatBox({ conversationId, isRecruiter = false, onCallInitiate }:
   }, [messages])
 
   const fetchMessages = async (silent = false) => {
+    // Don't fetch if conversation doesn't exist (already confirmed as missing)
+    if (!conversationExists && silent) {
+      return
+    }
+
     try {
       if (!silent) {
         setLoading(true)
@@ -78,30 +83,32 @@ export function ChatBox({ conversationId, isRecruiter = false, onCallInitiate }:
       )
       
       if (unreadMessages && unreadMessages.length > 0) {
-        const messageIds = unreadMessages.map((msg: Message) => msg.id)
-        try {
-          await messagingAPI.markMessagesAsRead(conversationId, messageIds)
-        } catch (error) {
-          // Silently fail - this is not critical
+        const messageIds = unreadMessages.map((msg: Message) => msg.id).filter(Boolean)
+        
+        // Only mark as read if we have valid message IDs
+        if (messageIds.length > 0) {
+          try {
+            await messagingAPI.markMessagesAsRead(conversationId, messageIds)
+          } catch (error: any) {
+            console.error('Error marking messages as read:', error)
+            // Don't throw - this is not critical for the user experience
+          }
         }
       }
     } catch (error: any) {
       // If conversation doesn't exist (404), mark it and stop polling
       if (error.response?.status === 404) {
         setConversationExists(false)
-        // Stop polling if conversation doesn't exist
-        if (pollingIntervalRef.current) {
-          clearInterval(pollingIntervalRef.current)
-          pollingIntervalRef.current = null
+        // Only log 404 errors if not silent (initial load)
+        if (!silent) {
+          console.log('Conversation not found - may not be initialized yet')
         }
-        // Don't log 404 errors - they're expected when conversation doesn't exist yet
-        // This is a normal state, not an error
-        return
-      }
-      
-      // Only log non-404 errors
-      if (!silent && error.response?.status !== 404) {
-        console.error('Error fetching messages:', error)
+      } else {
+        // Log other errors
+        if (!silent) {
+          console.error('Error fetching messages:', error)
+          console.error('Failed to load messages. Please try again.')
+        }
       }
     } finally {
       if (!silent) {

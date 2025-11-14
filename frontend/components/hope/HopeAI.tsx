@@ -4,6 +4,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, FunctionDeclaration, Type } from '@google/genai';
 import { Status, TranscriptEntry } from '@/lib/hope/types';
 import { decode, decodeAudioData, createPcmBlob, blobToBase64 } from '@/lib/hope/audioUtils';
+import { fetchUserContext, formatUserContextForPrompt } from '@/lib/hope/userContext';
 import { ConversationControls } from './ConversationControls';
 import { TranscriptDisplay } from './TranscriptDisplay';
 
@@ -50,6 +51,7 @@ export const HopeAI: React.FC = () => {
     processor: ScriptProcessorNode | null;
     outputSources: Set<AudioBufferSourceNode>;
     nextStartTime: number;
+    isAISpeaking: boolean;
   }>({
     input: null,
     output: null,
@@ -57,6 +59,7 @@ export const HopeAI: React.FC = () => {
     processor: null,
     outputSources: new Set(),
     nextStartTime: 0,
+    isAISpeaking: false,
   });
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -102,6 +105,7 @@ export const HopeAI: React.FC = () => {
       processor: null,
       outputSources: new Set(),
       nextStartTime: 0,
+      isAISpeaking: false,
     };
   }, [mediaStream]);
 
@@ -137,6 +141,25 @@ export const HopeAI: React.FC = () => {
     }
 
     try {
+      // Fetch user context for personalized AI
+      console.log('Fetching user context...');
+      const userContext = await fetchUserContext();
+      console.log('User context loaded successfully:', {
+        userName: userContext.user?.full_name,
+        skillsCount: userContext.skills.length,
+        experienceCount: userContext.experiences.length,
+        educationCount: userContext.educations.length,
+        savedJobsCount: userContext.savedJobs.length,
+        interestedJobsCount: userContext.interestedJobs.length,
+        availableJobsCount: userContext.availableJobs.length,
+        roadmapSkillsCount: userContext.roadmap?.skills_to_learn?.length || 0,
+        roadmapTargetJobsCount: userContext.roadmap?.target_jobs?.length || 0,
+      });
+      
+      const contextualSystemInstruction = formatUserContextForPrompt(userContext);
+      console.log('System instruction created (length):', contextualSystemInstruction.length, 'characters');
+      console.log('Hope AI is now fully aware of user profile, skills, jobs, and roadmap! 🚀');
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
       setMediaStream(stream);
       
@@ -157,13 +180,7 @@ export const HopeAI: React.FC = () => {
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
           },
-          systemInstruction: `You are Hope, a compassionate career guide. Your voice is calm and your presence is reassuring. You are speaking with someone who is feeling the weight of unemployment. 
-
-Your primary goal is to foster a genuine, two-way conversation. Be more than a passive listener; be an active and engaged partner in dialogue. Your role is to listen with deep empathy, but also to show genuine curiosity. Ask gentle, open-ended follow-up questions that invite them to share more. Reflect back what you hear not just to confirm, but to understand on a deeper level. 
-
-Acknowledge their feelings as valid, and let them know they are not alone. Silently use the 'reportEmotion' tool to understand their emotional state, and let that understanding soften your tone and guide your compassionate responses. Never mention the detected emotion.
-
-The conversation should feel like a quiet, supportive chat with a trusted friend—one where both sides are sharing and learning. Help them feel seen, heard, and truly understood by engaging in a natural, reciprocal exchange. Keep your responses thoughtful, but don't be afraid to guide the conversation when it feels right.`,
+          systemInstruction: contextualSystemInstruction,
         },
         callbacks: {
           onopen: () => {
@@ -171,11 +188,14 @@ The conversation should feel like a quiet, supportive chat with a trusted friend
             const processor = inputAudioContext.createScriptProcessor(SCRIPT_PROCESSOR_BUFFER_SIZE, 1, 1);
 
             processor.onaudioprocess = (audioProcessingEvent) => {
-              const inputData = audioProcessingEvent.inputBuffer.getChannelData(0);
-              const pcmBlob = createPcmBlob(inputData);
-              sessionPromiseRef.current?.then((session) => {
-                  session.sendRealtimeInput({ media: pcmBlob });
-              });
+              // Only send audio input when AI is not speaking
+              if (!audioContextsRef.current.isAISpeaking) {
+                const inputData = audioProcessingEvent.inputBuffer.getChannelData(0);
+                const pcmBlob = createPcmBlob(inputData);
+                sessionPromiseRef.current?.then((session) => {
+                    session.sendRealtimeInput({ media: pcmBlob });
+                });
+              }
             };
 
             source.connect(processor);
@@ -220,10 +240,12 @@ The conversation should feel like a quiet, supportive chat with a trusted friend
               outputSources.forEach((s) => s.stop());
               outputSources.clear();
               audioContextsRef.current.nextStartTime = 0;
+              audioContextsRef.current.isAISpeaking = false;
               
               currentHopeTurnRef.current = '';
               setLiveTranscript(prev => ({ ...prev, hope: '' }));
               setStatus(Status.LISTENING);
+              console.log('⚠️ Hope was interrupted - now listening');
             }
 
             if (message.toolCall?.functionCalls) {
@@ -265,6 +287,7 @@ The conversation should feel like a quiet, supportive chat with a trusted friend
 
             const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
             if (base64Audio && outputAudioContext) {
+              audioContextsRef.current.isAISpeaking = true;
               setStatus(Status.SPEAKING);
               const audioData = decode(base64Audio);
               const audioBuffer = await decodeAudioData(audioData, outputAudioContext, OUTPUT_SAMPLE_RATE, 1);
@@ -283,11 +306,23 @@ The conversation should feel like a quiet, supportive chat with a trusted friend
               audioContextsRef.current.outputSources.add(sourceNode);
               sourceNode.onended = () => {
                 audioContextsRef.current.outputSources.delete(sourceNode);
+                
+                // Check if all audio has finished playing
+                if (audioContextsRef.current.outputSources.size === 0) {
+                  audioContextsRef.current.isAISpeaking = false;
+                  console.log('✅ Hope finished speaking - now listening for your input');
+                }
               };
             }
 
             if (message.serverContent?.turnComplete) {
-                setStatus((prevStatus) => (prevStatus === Status.SPEAKING ? Status.LISTENING : prevStatus));
+                // Only switch to listening if AI is not speaking
+                setStatus((prevStatus) => {
+                  if (prevStatus === Status.SPEAKING && !audioContextsRef.current.isAISpeaking) {
+                    return Status.LISTENING;
+                  }
+                  return prevStatus;
+                });
                 
                 const finalUserTurn = currentUserTurnRef.current;
                 const finalHopeTurn = currentHopeTurnRef.current;

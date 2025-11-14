@@ -15,8 +15,9 @@ app.use(cors({
   origin: process.env.ALLOWED_ORIGINS === '*' ? '*' : process.env.ALLOWED_ORIGINS.split(','),
   credentials: process.env.ALLOWED_ORIGINS !== '*'
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Increase payload size limit for image uploads (50MB)
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Routes
 const authRoutes = require('./routes/auth.routes');
@@ -31,6 +32,7 @@ const externalJobsRoutes = require('./routes/externalJobs.routes');
 const courseRoutes = require('./routes/course.routes');
 const cvRoutes = require('./routes/cv.routes');
 const videoCallRoutes = require('./routes/videoCall.routes');
+const headshotRoutes = require('./routes/headshot.routes');
 
 const API_PREFIX = process.env.API_PREFIX || '/api/v1';
 
@@ -46,6 +48,7 @@ app.use(`${API_PREFIX}/external-jobs`, externalJobsRoutes);
 app.use(`${API_PREFIX}/courses`, courseRoutes);
 app.use(`${API_PREFIX}/cv`, cvRoutes);
 app.use(`${API_PREFIX}/video-calls`, videoCallRoutes);
+app.use(`${API_PREFIX}/headshots`, headshotRoutes);
 
 // Health check
 app.get(`${API_PREFIX}/health`, (req, res) => {

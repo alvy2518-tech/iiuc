@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const profileController = require('../controllers/profile.controller');
+const headshotController = require('../controllers/headshot.controller');
 const { authenticate, authorize } = require('../middleware/auth.middleware');
 const { validate } = require('../middleware/validate.middleware');
 const {
@@ -15,7 +16,7 @@ const {
   jobPreferencesSchema
 } = require('../validators/profile.validator');
 
-// Configure multer for memory storage
+// Configure multer for resume uploads
 const storage = multer.memoryStorage();
 const upload = multer({
   storage: storage,
@@ -31,6 +32,27 @@ const upload = multer({
       cb(null, true);
     } else {
       cb(new Error('Only PDF and DOCX files are allowed'));
+    }
+  }
+});
+
+// Configure multer for image uploads (headshots)
+const imageStorage = multer.memoryStorage();
+const imageUpload = multer({
+  storage: imageStorage,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit for images
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedMimeTypes = [
+      'image/jpeg',
+      'image/png',
+      'image/webp'
+    ];
+    if (allowedMimeTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only JPEG, PNG, and WebP images are allowed'));
     }
   }
 });
@@ -322,6 +344,35 @@ router.get(
       res.status(500).json({ error: 'Internal Server Error', message: 'Failed to list candidates' });
     }
   }
+);
+
+// ============================================
+// CANDIDATE HEADSHOT ROUTES
+// ============================================
+
+// POST /api/v1/profiles/candidate/headshots/generate - Generate professional headshot
+router.post(
+  '/candidate/headshots/generate',
+  authenticate,
+  authorize('candidate'),
+  imageUpload.single('image'),
+  headshotController.generateHeadshot
+);
+
+// GET /api/v1/profiles/candidate/headshots/history - Get headshot history
+router.get(
+  '/candidate/headshots/history',
+  authenticate,
+  authorize('candidate'),
+  headshotController.getHeadshotHistory
+);
+
+// DELETE /api/v1/profiles/candidate/headshots/:headshotId - Delete headshot
+router.delete(
+  '/candidate/headshots/:headshotId',
+  authenticate,
+  authorize('candidate'),
+  headshotController.deleteHeadshot
 );
 
 module.exports = router;

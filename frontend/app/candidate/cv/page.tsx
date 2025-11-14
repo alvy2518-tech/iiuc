@@ -14,6 +14,7 @@ import { cvAPI } from "@/lib/api"
 import { CommonNavbar } from "@/components/common-navbar"
 import html2canvas from "html2canvas-pro"
 import jsPDF from "jspdf"
+import HeadshotGenerator from "@/components/headshot-generator"
 
 interface Profile {
   full_name: string
@@ -1241,6 +1242,11 @@ export default function CVBuilderPage() {
               </div>
             </Card>
           </div>
+        </div>
+
+        {/* AI Headshot Generator Section */}
+        <div className="mt-8">
+          <HeadshotGenerator />
         </div>
       </main>
     </div>

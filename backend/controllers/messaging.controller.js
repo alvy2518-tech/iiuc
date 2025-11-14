@@ -10,9 +10,26 @@ const sendMessage = async (req, res) => {
     const { conversationId } = req.params;
     const { content, message_type = 'text' } = req.body;
 
+    console.log('📨 Send message request:', { userId, conversationId, contentLength: content?.length });
+
+    // Validate input
+    if (!content || content.trim().length === 0) {
+      return res.status(400).json({
+        error: 'Bad Request',
+        message: 'Message content is required'
+      });
+    }
+
     // Get the user's JWT token
     const authHeader = req.headers.authorization;
     const token = authHeader ? authHeader.replace('Bearer ', '') : null;
+
+    if (!token) {
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Authentication token is required'
+      });
+    }
 
     // Create a Supabase client with the user's JWT token
     const userSupabase = createClient(
@@ -36,9 +53,11 @@ const sendMessage = async (req, res) => {
         candidate_id,
         is_initiated,
         recruiter:recruiter_profiles!conversations_recruiter_id_fkey(
+          id,
           user_id
         ),
         candidate:candidate_profiles!conversations_candidate_id_fkey(
+          id,
           user_id
         )
       `)
@@ -46,9 +65,29 @@ const sendMessage = async (req, res) => {
       .single();
 
     if (conversationError || !conversation) {
+      console.error('❌ Conversation fetch error:', conversationError);
       return res.status(404).json({
         error: 'Not Found',
         message: 'Conversation not found'
+      });
+    }
+
+    console.log('✅ Conversation found:', { 
+      id: conversation.id, 
+      isInitiated: conversation.is_initiated,
+      hasRecruiter: !!conversation.recruiter,
+      hasCandidate: !!conversation.candidate
+    });
+
+    // Validate that recruiter and candidate profiles exist
+    if (!conversation.recruiter || !conversation.candidate) {
+      console.error('❌ Missing profile data in sendMessage:', { 
+        hasRecruiter: !!conversation.recruiter, 
+        hasCandidate: !!conversation.candidate 
+      });
+      return res.status(500).json({
+        error: 'Internal Server Error',
+        message: 'Conversation data is incomplete'
       });
     }
 
@@ -59,18 +98,22 @@ const sendMessage = async (req, res) => {
     if (conversation.recruiter.user_id === userId) {
       senderType = 'recruiter';
       senderId = conversation.recruiter_id;
+      console.log('👤 Sender is recruiter');
     } else if (conversation.candidate.user_id === userId) {
       senderType = 'candidate';
       senderId = conversation.candidate_id;
+      console.log('👤 Sender is candidate');
 
       // Candidates can only send if conversation is initiated
       if (!conversation.is_initiated) {
+        console.warn('⚠️ Candidate trying to send before conversation is initiated');
         return res.status(403).json({
           error: 'Forbidden',
           message: 'Cannot send message. Recruiter must initiate the conversation first.'
         });
       }
     } else {
+      console.error('❌ User not part of conversation');
       return res.status(403).json({
         error: 'Forbidden',
         message: 'You do not have permission to send messages in this conversation'
@@ -83,9 +126,11 @@ const sendMessage = async (req, res) => {
       sender_type: senderType,
       sender_id: senderId,
       message_type,
-      content,
+      content: content.trim(),
       is_read: false
     };
+
+    console.log('💾 Creating message:', messageData);
 
     const { data: message, error: messageError } = await userSupabase
       .from('messages')
@@ -94,25 +139,56 @@ const sendMessage = async (req, res) => {
       .single();
 
     if (messageError) {
-      console.error('Send message error:', messageError);
+      console.error('❌ Send message error:', messageError);
       return res.status(500).json({
         error: 'Internal Server Error',
-        message: 'Failed to send message'
+        message: 'Failed to send message',
+        details: messageError.message
       });
     }
 
+    console.log('✅ Message created:', message.id);
+
+    // Update conversation metadata
+    const conversationUpdate = {
+      last_message_at: new Date().toISOString(),
+      last_message_content: content.trim().substring(0, 100) // Limit to 100 chars
+    };
+
+    // If this is the recruiter's first message, mark conversation as initiated
+    if (senderType === 'recruiter' && !conversation.is_initiated) {
+      conversationUpdate.is_initiated = true;
+      conversationUpdate.initiated_by_recruiter = true;
+      console.log('🚀 Initiating conversation (recruiter first message)');
+    }
+
+    const { error: updateError } = await userSupabase
+      .from('conversations')
+      .update(conversationUpdate)
+      .eq('id', conversationId);
+
+    if (updateError) {
+      console.error('⚠️ Error updating conversation metadata:', updateError);
+      // Don't fail the request, message was already sent successfully
+    } else {
+      console.log('✅ Conversation metadata updated');
+    }
+
     res.status(201).json({
+      success: true,
       message: 'Message sent successfully',
       data: message
     });
   } catch (error) {
-    console.error('Send message error:', error);
+    console.error('❌ Send message error:', error);
     res.status(500).json({
       error: 'Internal Server Error',
-      message: 'Failed to send message'
+      message: 'Failed to send message',
+      details: error.message
     });
   }
 };
+
 
 /**
  * Get all messages in a conversation
@@ -123,15 +199,19 @@ const getMessages = async (req, res) => {
     const { conversationId } = req.params;
     const { limit = 50, offset = 0 } = req.query;
 
+    console.log('📬 Get messages request:', { userId, conversationId, limit, offset });
+
     // Get conversation and verify user has access
     const { data: conversation, error: conversationError } = await supabase
       .from('conversations')
       .select(`
         id,
         recruiter:recruiter_profiles!conversations_recruiter_id_fkey(
+          id,
           user_id
         ),
         candidate:candidate_profiles!conversations_candidate_id_fkey(
+          id,
           user_id
         )
       `)
@@ -139,9 +219,30 @@ const getMessages = async (req, res) => {
       .single();
 
     if (conversationError || !conversation) {
+      // Silent fail for polling - conversation might not exist yet
+      if (conversationError?.code === 'PGRST116') {
+        console.log('ℹ️ Conversation not found (polling):', conversationId);
+        return res.status(404).json({
+          error: 'Not Found',
+          message: 'Conversation not found'
+        });
+      }
+      console.error('❌ Conversation fetch error in getMessages:', conversationError);
       return res.status(404).json({
         error: 'Not Found',
         message: 'Conversation not found'
+      });
+    }
+
+    // Validate that recruiter and candidate profiles exist
+    if (!conversation.recruiter || !conversation.candidate) {
+      console.error('❌ Missing profile data in getMessages:', { 
+        hasRecruiter: !!conversation.recruiter, 
+        hasCandidate: !!conversation.candidate 
+      });
+      return res.status(500).json({
+        error: 'Internal Server Error',
+        message: 'Conversation data is incomplete'
       });
     }
 
@@ -151,6 +252,7 @@ const getMessages = async (req, res) => {
       conversation.candidate.user_id === userId;
 
     if (!hasAccess) {
+      console.error('❌ Access denied in getMessages');
       return res.status(403).json({
         error: 'Forbidden',
         message: 'You do not have permission to view this conversation'
@@ -166,7 +268,7 @@ const getMessages = async (req, res) => {
       .range(Number(offset), Number(offset) + Number(limit) - 1);
 
     if (messagesError) {
-      console.error('Get messages error:', messagesError);
+      console.error('❌ Get messages error:', messagesError);
       return res.status(500).json({
         error: 'Internal Server Error',
         message: 'Failed to fetch messages'
@@ -179,20 +281,25 @@ const getMessages = async (req, res) => {
       .select('*', { count: 'exact', head: true })
       .eq('conversation_id', conversationId);
 
+    console.log('✅ Messages fetched:', { count: messages?.length || 0, total: count || 0 });
+
     res.status(200).json({
+      success: true,
       messages: messages || [],
       total: count || 0,
       limit: Number(limit),
       offset: Number(offset)
     });
   } catch (error) {
-    console.error('Get messages error:', error);
+    console.error('❌ Get messages error:', error);
     res.status(500).json({
       error: 'Internal Server Error',
-      message: 'Failed to fetch messages'
+      message: 'Failed to fetch messages',
+      details: error.message
     });
   }
 };
+
 
 /**
  * Mark messages as read
@@ -203,93 +310,97 @@ const markMessagesAsRead = async (req, res) => {
     const { conversationId } = req.params;
     const { messageIds } = req.body;
 
-    // Get the user's JWT token
+    console.log('👁️ Mark messages as read:', { userId, conversationId, messageCount: messageIds?.length || 0 });
+
+    if (!messageIds || !Array.isArray(messageIds)) {
+      return res.status(400).json({ error: 'Bad Request', message: 'messageIds must be an array' });
+    }
+
+    const validMessageIds = messageIds.filter(id => id);
+    if (validMessageIds.length === 0) {
+      console.log('ℹ️ No valid messages to mark as read');
+      return res.status(200).json({ success: true, message: 'No messages to mark as read', count: 0 });
+    }
+
     const authHeader = req.headers.authorization;
     const token = authHeader ? authHeader.replace('Bearer ', '') : null;
+    if (!token) {
+      return res.status(401).json({ error: 'Unauthorized', message: 'Authentication token is required' });
+    }
 
-    // Create a Supabase client with the user's JWT token
-    const userSupabase = createClient(
-      process.env.SUPABASE_URL,
-      process.env.SUPABASE_ANON_KEY,
-      {
-        global: {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        }
-      }
-    );
+    const userSupabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
+      global: { headers: { Authorization: `Bearer ${token}` } }
+    });
 
-    // Get conversation and verify user has access
     const { data: conversation, error: conversationError } = await supabase
       .from('conversations')
       .select(`
-        id,
-        recruiter:recruiter_profiles!conversations_recruiter_id_fkey(
-          user_id
-        ),
-        candidate:candidate_profiles!conversations_candidate_id_fkey(
-          user_id
-        )
+        id, recruiter_id, candidate_id,
+        recruiter:recruiter_profiles!conversations_recruiter_id_fkey(id, user_id),
+        candidate:candidate_profiles!conversations_candidate_id_fkey(id, user_id)
       `)
       .eq('id', conversationId)
       .single();
 
     if (conversationError || !conversation) {
-      return res.status(404).json({
-        error: 'Not Found',
-        message: 'Conversation not found'
-      });
+      console.error('❌ Conversation fetch error in markMessagesAsRead:', conversationError);
+      return res.status(404).json({ error: 'Not Found', message: 'Conversation not found' });
     }
 
-    // Determine user type
+    if (!conversation.recruiter || !conversation.candidate) {
+      console.error('❌ Missing profile data in markMessagesAsRead:', { 
+        hasRecruiter: !!conversation.recruiter, 
+        hasCandidate: !!conversation.candidate,
+        conversationId 
+      });
+      return res.status(500).json({ error: 'Internal Server Error', message: 'Conversation data is incomplete' });
+    }
+
     let userType;
     if (conversation.recruiter.user_id === userId) {
       userType = 'recruiter';
     } else if (conversation.candidate.user_id === userId) {
       userType = 'candidate';
     } else {
-      return res.status(403).json({
-        error: 'Forbidden',
-        message: 'You do not have permission to access this conversation'
-      });
+      console.error('❌ Access denied in markMessagesAsRead');
+      return res.status(403).json({ error: 'Forbidden', message: 'You do not have permission to access this conversation' });
     }
 
-    // Mark messages as read (only messages sent by the other party)
     const otherSenderType = userType === 'recruiter' ? 'candidate' : 'recruiter';
+    console.log('💾 Marking messages as read:', { userType, otherSenderType, count: validMessageIds.length });
 
     const { data: updatedMessages, error: updateError } = await userSupabase
       .from('messages')
-      .update({ 
-        is_read: true,
-        read_at: new Date().toISOString()
-      })
+      .update({ is_read: true, read_at: new Date().toISOString() })
       .eq('conversation_id', conversationId)
       .eq('sender_type', otherSenderType)
       .eq('is_read', false)
-      .in('id', messageIds || [])
-      .select();
+      .in('id', validMessageIds)
+      .select('id');
 
     if (updateError) {
-      console.error('Mark messages as read error:', updateError);
-      return res.status(500).json({
-        error: 'Internal Server Error',
-        message: 'Failed to mark messages as read'
+      console.error('❌ Mark messages as read error:', updateError);
+      return res.status(500).json({ 
+        error: 'Internal Server Error', 
+        message: 'Failed to mark messages as read', 
+        details: updateError.message 
       });
     }
 
-    res.status(200).json({
-      message: 'Messages marked as read',
-      count: updatedMessages?.length || 0
-    });
+    const count = updatedMessages?.length || 0;
+    console.log('✅ Messages marked as read:', count);
+
+    res.status(200).json({ success: true, message: 'Messages marked as read', count });
   } catch (error) {
-    console.error('Mark messages as read error:', error);
-    res.status(500).json({
-      error: 'Internal Server Error',
-      message: 'Failed to mark messages as read'
+    console.error('❌ Mark messages as read CATCH error:', error);
+    res.status(500).json({ 
+      error: 'Internal Server Error', 
+      message: 'Failed to mark messages as read', 
+      details: error.message 
     });
   }
 };
+
 
 /**
  * Get conversation details
@@ -298,6 +409,8 @@ const getConversation = async (req, res) => {
   try {
     const userId = req.user.id;
     const { conversationId } = req.params;
+
+    console.log('💬 Get conversation request:', { userId, conversationId });
 
     // Get conversation with full details
     const { data: conversation, error: conversationError } = await supabase
@@ -342,9 +455,22 @@ const getConversation = async (req, res) => {
       .single();
 
     if (conversationError || !conversation) {
+      console.error('❌ Conversation fetch error in getConversation:', conversationError);
       return res.status(404).json({
         error: 'Not Found',
         message: 'Conversation not found'
+      });
+    }
+
+    // Validate that recruiter and candidate profiles exist
+    if (!conversation.recruiter || !conversation.candidate) {
+      console.error('❌ Missing profile data in getConversation:', { 
+        hasRecruiter: !!conversation.recruiter, 
+        hasCandidate: !!conversation.candidate 
+      });
+      return res.status(500).json({
+        error: 'Internal Server Error',
+        message: 'Conversation data is incomplete'
       });
     }
 
@@ -354,20 +480,25 @@ const getConversation = async (req, res) => {
       conversation.candidate.user_id === userId;
 
     if (!hasAccess) {
+      console.error('❌ Access denied in getConversation');
       return res.status(403).json({
         error: 'Forbidden',
         message: 'You do not have permission to view this conversation'
       });
     }
 
+    console.log('✅ Conversation details fetched');
+
     res.status(200).json({
+      success: true,
       conversation
     });
   } catch (error) {
-    console.error('Get conversation error:', error);
+    console.error('❌ Get conversation error:', error);
     res.status(500).json({
       error: 'Internal Server Error',
-      message: 'Failed to fetch conversation'
+      message: 'Failed to fetch conversation',
+      details: error.message
     });
   }
 };
@@ -505,9 +636,23 @@ const updateCallStatus = async (req, res) => {
       .single();
 
     if (callError || !call) {
+      console.error('Call fetch error in updateCallStatus:', callError);
       return res.status(404).json({
         error: 'Not Found',
         message: 'Call not found'
+      });
+    }
+
+    // Validate that conversation and profiles exist
+    if (!call.conversation || !call.conversation.recruiter || !call.conversation.candidate) {
+      console.error('Missing data in updateCallStatus:', { 
+        hasConversation: !!call.conversation,
+        hasRecruiter: !!call.conversation?.recruiter, 
+        hasCandidate: !!call.conversation?.candidate 
+      });
+      return res.status(500).json({
+        error: 'Internal Server Error',
+        message: 'Call data is incomplete'
       });
     }
 
@@ -598,9 +743,22 @@ const getCallHistory = async (req, res) => {
       .single();
 
     if (conversationError || !conversation) {
+      console.error('Conversation fetch error in getCallHistory:', conversationError);
       return res.status(404).json({
         error: 'Not Found',
         message: 'Conversation not found'
+      });
+    }
+
+    // Validate that recruiter and candidate profiles exist
+    if (!conversation.recruiter || !conversation.candidate) {
+      console.error('Missing profile data in getCallHistory:', { 
+        hasRecruiter: !!conversation.recruiter, 
+        hasCandidate: !!conversation.candidate 
+      });
+      return res.status(500).json({
+        error: 'Internal Server Error',
+        message: 'Conversation data is incomplete'
       });
     }
 
@@ -644,12 +802,15 @@ const getCallHistory = async (req, res) => {
   }
 };
 
+
 /**
  * Get all conversations for a candidate
  */
 const getCandidateConversations = async (req, res) => {
   try {
     const userId = req.user.id;
+
+    console.log('📋 Get candidate conversations request:', { userId });
 
     // Get candidate profile
     const { data: candidateProfile, error: candidateError } = await supabase
@@ -659,6 +820,7 @@ const getCandidateConversations = async (req, res) => {
       .single();
 
     if (candidateError || !candidateProfile) {
+      console.error('❌ Candidate profile not found:', candidateError);
       return res.status(404).json({
         error: 'Not Found',
         message: 'Candidate profile not found'
@@ -703,21 +865,26 @@ const getCandidateConversations = async (req, res) => {
       .order('created_at', { ascending: false });
 
     if (conversationsError) {
-      console.error('Get candidate conversations error:', conversationsError);
+      console.error('❌ Get candidate conversations error:', conversationsError);
       return res.status(500).json({
         error: 'Internal Server Error',
-        message: 'Failed to fetch conversations'
+        message: 'Failed to fetch conversations',
+        details: conversationsError.message
       });
     }
 
+    console.log('✅ Candidate conversations fetched:', conversations?.length || 0);
+
     res.status(200).json({
+      success: true,
       conversations: conversations || []
     });
   } catch (error) {
-    console.error('Get candidate conversations error:', error);
+    console.error('❌ Get candidate conversations error:', error);
     res.status(500).json({
       error: 'Internal Server Error',
-      message: 'Failed to fetch conversations'
+      message: 'Failed to fetch conversations',
+      details: error.message
     });
   }
 };

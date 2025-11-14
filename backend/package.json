@@ -17,6 +17,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@imgly/background-removal-node": "^1.4.5",
     "@supabase/supabase-js": "^2.58.0",
     "agora-access-token": "^2.0.4",
     "axios": "^1.13.2",
@@ -30,7 +31,8 @@
     "morgan": "^1.10.0",
     "multer": "^2.0.2",
     "openai": "^4.104.0",
-    "pdf-parse": "^2.4.5"
+    "pdf-parse": "^2.4.5",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
