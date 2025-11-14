@@ -44,6 +44,8 @@ export function ChatBox({ conversationId, isRecruiter = false, onCallInitiate }:
       
       // Set up real-time polling every 3 seconds
       pollingIntervalRef.current = setInterval(() => {
+        // Check conversationExists state at the time of polling
+        // This will be checked inside fetchMessages as well
         fetchMessages(true) // Silent fetch (no loading state)
       }, 3000)
     }
@@ -52,6 +54,7 @@ export function ChatBox({ conversationId, isRecruiter = false, onCallInitiate }:
     return () => {
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current)
+        pollingIntervalRef.current = null
       }
     }
   }, [conversationId])
@@ -79,20 +82,26 @@ export function ChatBox({ conversationId, isRecruiter = false, onCallInitiate }:
         try {
           await messagingAPI.markMessagesAsRead(conversationId, messageIds)
         } catch (error) {
-          console.error('Error marking messages as read:', error)
+          // Silently fail - this is not critical
         }
       }
     } catch (error: any) {
-      // If conversation doesn't exist (404), mark it
+      // If conversation doesn't exist (404), mark it and stop polling
       if (error.response?.status === 404) {
         setConversationExists(false)
-      }
-      if (!silent) {
-        console.error('Error fetching messages:', error)
-        // Only show error for non-404 errors
-        if (error.response?.status !== 404) {
-          console.error('Failed to load messages. Please try again.')
+        // Stop polling if conversation doesn't exist
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current)
+          pollingIntervalRef.current = null
         }
+        // Don't log 404 errors - they're expected when conversation doesn't exist yet
+        // This is a normal state, not an error
+        return
+      }
+      
+      // Only log non-404 errors
+      if (!silent && error.response?.status !== 404) {
+        console.error('Error fetching messages:', error)
       }
     } finally {
       if (!silent) {
