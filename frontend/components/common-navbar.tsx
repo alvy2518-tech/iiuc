@@ -54,10 +54,10 @@ export function CommonNavbar() {
 
   return (
     <header className="sticky top-0 left-0 right-0 z-[100] w-full border-b border-gray-200 bg-white">
-      <div className="container mx-auto px-4 sm:px-6 py-4">
+      <div className="container mx-auto px-4 sm:px-6 py-2">
         <div className="flex items-center justify-between">
           {/* Logo */}
-          <Link href={user ? "/candidate/dashboard" : "/"} className="flex items-center gap-2">
+          <Link href={user ? "/candidate/dashboard" : "/"} className="flex items-center gap-2 flex-shrink-0">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#633ff3]">
               <Briefcase className="h-5 w-5 text-white" />
             </div>
@@ -65,105 +65,105 @@ export function CommonNavbar() {
           </Link>
 
           {/* Desktop Navigation Links */}
-          <nav className="hidden md:flex items-center gap-8">
+          <nav className="hidden md:flex items-center gap-3 lg:gap-4 xl:gap-5 flex-1 justify-center overflow-x-auto">
             <Link 
               href="/candidate/dashboard" 
-              className={`text-sm flex items-center gap-1 font-medium transition-colors ${
+              className={`text-xs flex flex-col items-center gap-1 font-medium transition-colors px-2 py-1 min-w-[60px] ${
                 isActive('/candidate/dashboard') 
                   ? 'text-[#633ff3] font-bold' 
                   : 'text-gray-600 hover:text-[#633ff3]'
               }`}
             >
-              <Home className="h-4 w-4" />
-              {t('common.home')}
+              <Home className="h-5 w-5" />
+              <span className="text-[10px] leading-tight text-center">{t('common.home')}</span>
             </Link>
             <Link 
               href="/candidate/jobs" 
-              className={`text-sm flex items-center gap-1 font-medium transition-colors ${
+              className={`text-xs flex flex-col items-center gap-1 font-medium transition-colors px-2 py-1 min-w-[60px] ${
                 isActive('/candidate/jobs') 
                   ? 'text-[#633ff3] font-bold' 
                   : 'text-gray-600 hover:text-[#633ff3]'
               }`}
             >
-              <Briefcase className="h-4 w-4" />
-              {t('common.jobs')}
+              <Briefcase className="h-5 w-5" />
+              <span className="text-[10px] leading-tight text-center">{t('common.jobs')}</span>
             </Link>
             <Link 
               href="/candidate/saved-jobs" 
-              className={`text-sm flex items-center gap-1 font-medium transition-colors ${
+              className={`text-xs flex flex-col items-center gap-1 font-medium transition-colors px-2 py-1 min-w-[60px] ${
                 isActive('/candidate/saved-jobs') 
                   ? 'text-[#633ff3] font-bold' 
                   : 'text-gray-600 hover:text-[#633ff3]'
               }`}
             >
-              <Bookmark className="h-4 w-4" />
-              {t('common.savedJobs')}
+              <Bookmark className="h-5 w-5" />
+              <span className="text-[10px] leading-tight text-center">{t('common.savedJobs')}</span>
             </Link>
             <Link 
               href="/candidate/interested-jobs" 
-              className={`text-sm flex items-center gap-1 font-medium transition-colors ${
+              className={`text-xs flex flex-col items-center gap-1 font-medium transition-colors px-2 py-1 min-w-[60px] ${
                 isActive('/candidate/interested-jobs') 
                   ? 'text-[#633ff3] font-bold' 
                   : 'text-gray-600 hover:text-[#633ff3]'
               }`}
             >
-              <Heart className="h-4 w-4" />
-              {t('common.interestedJobs')}
+              <Heart className="h-5 w-5" />
+              <span className="text-[10px] leading-tight text-center">{t('common.interestedJobs')}</span>
             </Link>
             <Link 
               href="/candidate/roadmap" 
-              className={`text-sm flex items-center gap-1 font-medium transition-colors ${
+              className={`text-xs flex flex-col items-center gap-1 font-medium transition-colors px-2 py-1 min-w-[60px] ${
                 isActive('/candidate/roadmap') 
                   ? 'text-[#633ff3] font-bold' 
                   : 'text-gray-600 hover:text-[#633ff3]'
               }`}
             >
-              <TrendingUp className="h-4 w-4" />
-              {t('common.roadmap')}
+              <TrendingUp className="h-5 w-5" />
+              <span className="text-[10px] leading-tight text-center">{t('common.roadmap')}</span>
             </Link>
             <Link 
               href="/candidate/courses" 
-              className={`text-sm flex items-center gap-1 font-medium transition-colors ${
+              className={`text-xs flex flex-col items-center gap-1 font-medium transition-colors px-2 py-1 min-w-[60px] ${
                 isActive('/candidate/courses') 
                   ? 'text-[#633ff3] font-bold' 
                   : 'text-gray-600 hover:text-[#633ff3]'
               }`}
             >
-              <BookOpen className="h-4 w-4" />
-              Courses
+              <BookOpen className="h-5 w-5" />
+              <span className="text-[10px] leading-tight text-center">Courses</span>
             </Link>
             <Link 
               href="/candidate/inbox" 
-              className={`text-sm flex items-center gap-1 font-medium transition-colors relative ${
+              className={`text-xs flex flex-col items-center gap-1 font-medium transition-colors px-2 py-1 min-w-[60px] relative ${
                 isActive('/candidate/inbox') 
                   ? 'text-[#633ff3] font-bold' 
                   : 'text-gray-600 hover:text-[#633ff3]'
               }`}
             >
-              <Inbox className="h-4 w-4" />
-              Inbox
+              <Inbox className="h-5 w-5" />
+              <span className="text-[10px] leading-tight text-center">Inbox</span>
             </Link>
             <Link 
               href="/candidate/hope" 
-              className={`text-sm flex items-center gap-1 font-medium transition-colors ${
+              className={`text-xs flex flex-col items-center gap-1 font-medium transition-colors px-2 py-1 min-w-[60px] ${
                 isActive('/candidate/hope') 
                   ? 'text-[#633ff3] font-bold' 
                   : 'text-gray-600 hover:text-[#633ff3]'
               }`}
             >
-              <MessageCircle className="h-4 w-4" />
-              Hope AI
+              <MessageCircle className="h-5 w-5" />
+              <span className="text-[10px] leading-tight text-center">Hope AI</span>
             </Link>
             <Link 
               href="/candidate/profile/edit" 
-              className={`text-sm flex items-center gap-1 font-medium transition-colors ${
+              className={`text-xs flex flex-col items-center gap-1 font-medium transition-colors px-2 py-1 min-w-[60px] ${
                 pathname.startsWith('/candidate/profile') 
                   ? 'text-[#633ff3] font-bold' 
                   : 'text-gray-600 hover:text-[#633ff3]'
               }`}
             >
-              <User className="h-4 w-4" />
-              {t('common.profile')}
+              <User className="h-5 w-5" />
+              <span className="text-[10px] leading-tight text-center">{t('common.profile')}</span>
             </Link>
           </nav>
 
