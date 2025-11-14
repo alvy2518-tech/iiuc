@@ -12,6 +12,7 @@ const getAllJobs = async (req, res) => {
       experienceLevel,
       country,
       city,
+      location, // Added location parameter to handle city filtering from frontend
       isStudentFriendly,
       sortBy = 'created_at',
       order = 'desc',
@@ -50,8 +51,12 @@ const getAllJobs = async (req, res) => {
     if (country) {
       query = query.eq('country', country);
     }
-    if (city) {
-      query = query.eq('city', city);
+    // Handle both 'city' and 'location' parameters for filtering by city
+    // 'location' is sent from frontend, 'city' is for backward compatibility
+    const cityFilter = city || location;
+    if (cityFilter) {
+      // Use case-insensitive matching for better search results
+      query = query.ilike('city', `%${cityFilter}%`);
     }
     if (isStudentFriendly === 'true') {
       query = query.eq('is_student_friendly', true);

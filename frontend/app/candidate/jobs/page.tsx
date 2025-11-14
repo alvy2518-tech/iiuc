@@ -69,6 +69,11 @@ export default function BrowseJobsPage() {
         limit: 10,
       }
 
+      // Add location filter if selected and not "All Locations"
+      if (location && location !== '') {
+        params.location = location
+      }
+
       const response = await jobsAPI.getAll(params)
 
       // Start with server results
@@ -123,21 +128,20 @@ export default function BrowseJobsPage() {
         )
       }
 
-      // Client-side location filter: remote or city match
-      if (location) {
+      // Location filter is now handled server-side, but keep client-side for additional filtering
+      if (location && location !== '') {
         const loc = location.trim().toLowerCase()
-        if (loc) {
-          if (loc.includes('remote')) {
-            fetched = fetched.filter((j: any) =>
-              (j.work_mode && String(j.work_mode).toLowerCase().includes('remote'))
-            )
-          } else {
-            const cityFromLoc = loc.split(',')[0].trim()
-            fetched = fetched.filter((j: any) =>
-              (j.city && String(j.city).toLowerCase().includes(cityFromLoc)) ||
-              (j.work_mode && String(j.work_mode).toLowerCase().includes(cityFromLoc))
-            )
-          }
+        if (loc === 'remote') {
+          // For remote, filter to only remote jobs
+          fetched = fetched.filter((j: any) =>
+            (j.work_mode && String(j.work_mode).toLowerCase().includes('remote'))
+          )
+        } else {
+          // For specific locations, filter by city match
+          fetched = fetched.filter((j: any) =>
+            (j.city && String(j.city).toLowerCase().includes(loc)) ||
+            (j.location && String(j.location).toLowerCase().includes(loc))
+          )
         }
       }
 
@@ -341,24 +345,26 @@ export default function BrowseJobsPage() {
         
         console.log(`Successfully loaded ${mappedJobs.length} external jobs from SerpAPI`)
         
-        // Add external jobs to existing jobs
-        const combinedJobs = [...jobs, ...mappedJobs]
-        setJobs(combinedJobs)
+        // Replace existing jobs with ONLY external jobs (don't show placeholder jobs)
+        setJobs(mappedJobs)
         
-        // Calculate matches for external jobs
+        // Calculate matches for external jobs only
         if (candidateProfile) {
           const externalJobsWithMatches = mappedJobs.map((job: any) => ({
             job,
             match: calculateJobMatch(candidateProfile, job)
           }))
-          setJobsWithMatches([...jobsWithMatches, ...externalJobsWithMatches])
+          setJobsWithMatches(externalJobsWithMatches)
         } else {
           const externalJobsWithoutMatches = mappedJobs.map((job: any) => ({
             job,
             match: null as any
           }))
-          setJobsWithMatches([...jobsWithMatches, ...externalJobsWithoutMatches])
+          setJobsWithMatches(externalJobsWithoutMatches)
         }
+        
+        // Automatically switch to external jobs view
+        setPlatformFilter('google')
       } else {
         console.log('No external jobs found from SerpAPI')
       }
@@ -705,7 +711,13 @@ export default function BrowseJobsPage() {
               <div className="flex items-center gap-3 border-b border-gray-200 pb-4">
                 {/* Our Platform */}
                 <button
-                  onClick={() => setPlatformFilter("in-platform")}
+                  onClick={() => {
+                    setPlatformFilter("in-platform")
+                    // Reload internal jobs if we're currently showing external jobs
+                    if (platformFilter === 'google') {
+                      fetchJobs()
+                    }
+                  }}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
                     platformFilter === "in-platform"
                       ? "bg-[#633ff3] text-white border-[#633ff3]"
@@ -719,7 +731,13 @@ export default function BrowseJobsPage() {
 
                 {/* All Jobs */}
                 <button
-                  onClick={() => setPlatformFilter("all")}
+                  onClick={() => {
+                    setPlatformFilter("all")
+                    // Reload internal jobs if we're currently showing only external jobs
+                    if (platformFilter === 'google') {
+                      fetchJobs()
+                    }
+                  }}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
                     platformFilter === "all"
                       ? "bg-[#633ff3] text-white border-[#633ff3]"
@@ -754,9 +772,21 @@ export default function BrowseJobsPage() {
 
           {/* Jobs List */}
           {loading ? (
-              <div className="text-center py-12 text-sm text-gray-500">
+            <div className="text-center py-12 text-sm text-gray-500">
               {t('dashboard.loadingJobs')}
             </div>
+          ) : googleJobsLoading ? (
+            <Card className="p-12 text-center bg-white border border-gray-200">
+              <div className="w-16 h-16 rounded-full bg-blue-50 flex items-center justify-center mx-auto mb-4">
+                <div className="h-8 w-8 animate-spin border-3 border-blue-600 border-t-transparent rounded-full"></div>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Loading External Jobs...
+              </h3>
+              <p className="text-sm text-gray-600">
+                Searching for jobs from external sources. Please wait...
+              </p>
+            </Card>
           ) : jobs.length === 0 ? (
               <Card className="p-8 text-center bg-white border border-gray-200">
                 <p className="text-sm text-gray-500">{t('jobs.noJobsFound')}</p>
