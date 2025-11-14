@@ -5,6 +5,7 @@ import { Status, TranscriptEntry } from './types';
 import { decode, decodeAudioData, createPcmBlob, blobToBase64 } from './utils/audioUtils';
 import { ConversationControls } from './components/ConversationControls';
 import { TranscriptDisplay } from './components/TranscriptDisplay';
+import { CareerBot } from './components/CareerBot';
 
 // Constants
 const INPUT_SAMPLE_RATE = 16000;
@@ -34,6 +35,7 @@ const App: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [detectedEmotion, setDetectedEmotion] = useState<string>('');
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
+  const [showCareerBot, setShowCareerBot] = useState<boolean>(false);
 
   // State for transcription
   const [transcriptHistory, setTranscriptHistory] = useState<TranscriptEntry[]>([]);
@@ -356,64 +358,90 @@ The conversation should feel like a quiet, supportive chat with a trusted friend
   const speakingAnimationClass = status === Status.SPEAKING ? 'animate-breathe' : '';
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-200 p-4">
-      <div className="relative flex flex-col h-[90vh] max-h-[700px] w-full max-w-[450px] bg-[#FEFDFB] text-[#1E1E1E] rounded-3xl shadow-2xl overflow-hidden">
-        <canvas ref={canvasRef} className="hidden"></canvas>
-        
-        <header className="absolute top-0 left-0 right-0 p-6 z-20 flex justify-center">
-            {(status !== Status.IDLE && status !== Status.ERROR) && (
-              <div className="text-center">
-                  <div className={`relative w-28 h-28 transition-all duration-500 ${speakingAnimationClass}`}>
-                    <video
-                        ref={videoRef}
-                        autoPlay
-                        playsInline
-                        muted
-                        className={`w-full h-full rounded-xl object-cover bg-gray-200 border-4 ${videoBorderColor} transition-colors duration-500 shadow-lg`}
-                    ></video>
-                  </div>
-                  {detectedEmotion && (
-                      <p className="mt-3 text-sm font-medium bg-gray-100 text-gray-600 px-3 py-1 rounded-full capitalize">
-                          {detectedEmotion}
-                      </p>
-                  )}
+    <>
+      <div className="flex items-center justify-center min-h-screen bg-gray-200 p-4">
+        <div className="relative flex flex-col h-[90vh] max-h-[700px] w-full max-w-[450px] bg-[#FEFDFB] text-[#1E1E1E] rounded-3xl shadow-2xl overflow-hidden">
+          <canvas ref={canvasRef} className="hidden"></canvas>
+          
+          <header className="absolute top-0 left-0 right-0 p-6 z-20 flex justify-center">
+              {(status !== Status.IDLE && status !== Status.ERROR) && (
+                <div className="text-center">
+                    <div className={`relative w-28 h-28 transition-all duration-500 ${speakingAnimationClass}`}>
+                      <video
+                          ref={videoRef}
+                          autoPlay
+                          playsInline
+                          muted
+                          className={`w-full h-full rounded-xl object-cover bg-gray-200 border-4 ${videoBorderColor} transition-colors duration-500 shadow-lg`}
+                      ></video>
+                    </div>
+                    {detectedEmotion && (
+                        <p className="mt-3 text-sm font-medium bg-gray-100 text-gray-600 px-3 py-1 rounded-full capitalize">
+                            {detectedEmotion}
+                        </p>
+                    )}
+                </div>
+              )}
+          </header>
+
+          <main className="flex-grow flex flex-col text-center overflow-hidden pt-40">
+            {status === Status.IDLE && (
+              <div className="max-w-sm m-auto p-6 text-center">
+                <h1 className="text-4xl font-bold text-gray-800 mb-2">Hope</h1>
+                <h2 className="text-xl font-medium text-gray-600 mb-4">Your Career Companion</h2>
+                <p className="text-gray-500">
+                  A quiet space to talk through the challenges of the job search.
+                  When you're ready, I'm here to listen.
+                </p>
               </div>
             )}
-        </header>
-
-        <main className="flex-grow flex flex-col text-center overflow-hidden pt-40">
-          {status === Status.IDLE && (
-            <div className="max-w-sm m-auto p-6 text-center">
-              <h1 className="text-4xl font-bold text-gray-800 mb-2">Hope</h1>
-              <h2 className="text-xl font-medium text-gray-600 mb-4">Your Career Companion</h2>
-              <p className="text-gray-500">
-                A quiet space to talk through the challenges of the job search.
-                When you're ready, I'm here to listen.
-              </p>
+            {status === Status.ERROR && (
+              <div className="p-8 max-w-sm m-auto bg-red-50 rounded-2xl border border-red-200">
+                <h2 className="text-2xl font-bold text-red-800 mb-2">Connection Issue</h2>
+                <p className="text-red-700">
+                  {errorMessage || "An unexpected error occurred. Please try again."}
+                </p>
+              </div>
+            )}
+            <TranscriptDisplay 
+              history={transcriptHistory}
+              currentUserTurn={liveTranscript.user}
+              currentHopeTurn={liveTranscript.hope}
+              status={status}
+            />
+          </main>
+          <footer className="w-full p-6 z-10 bg-[#FEFDFB] border-t border-gray-100">
+            <div className="max-w-md mx-auto">
+              <ConversationControls status={status} onToggleConversation={handleToggleConversation} />
             </div>
-          )}
-          {status === Status.ERROR && (
-            <div className="p-8 max-w-sm m-auto bg-red-50 rounded-2xl border border-red-200">
-              <h2 className="text-2xl font-bold text-red-800 mb-2">Connection Issue</h2>
-              <p className="text-red-700">
-                {errorMessage || "An unexpected error occurred. Please try again."}
-              </p>
-            </div>
-          )}
-          <TranscriptDisplay 
-            history={transcriptHistory}
-            currentUserTurn={liveTranscript.user}
-            currentHopeTurn={liveTranscript.hope}
-            status={status}
-          />
-        </main>
-        <footer className="w-full p-6 z-10 bg-[#FEFDFB] border-t border-gray-100">
-          <div className="max-w-md mx-auto">
-            <ConversationControls status={status} onToggleConversation={handleToggleConversation} />
-          </div>
-        </footer>
+          </footer>
+        </div>
       </div>
-    </div>
+
+      {/* CareerBot Toggle Button */}
+      {!showCareerBot && (
+        <button
+          onClick={() => setShowCareerBot(true)}
+          className="fixed bottom-6 right-6 z-40 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full p-4 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-110 group"
+          aria-label="Open CareerBot"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🤖</span>
+            <span className="hidden group-hover:inline-block text-sm font-medium pr-2 transition-all">
+              Ask CareerBot
+            </span>
+          </div>
+        </button>
+      )}
+
+      {/* CareerBot Modal */}
+      {showCareerBot && (
+        <CareerBot 
+          onClose={() => setShowCareerBot(false)}
+          userId={undefined} // Pass user ID when authenticated
+        />
+      )}
+    </>
   );
 };
 

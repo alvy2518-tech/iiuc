@@ -41,6 +41,51 @@
         border-radius: 50%;
         animation: ripple 1.5s infinite cubic-bezier(0.22, 1, 0.36, 1);
       }
+
+      /* CareerBot animations */
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .animate-fadeIn {
+        animation: fadeIn 0.3s ease-out;
+      }
+
+      @keyframes slideUp {
+        from {
+          opacity: 0;
+          transform: translateY(100%);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .animate-slideUp {
+        animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      /* Smooth scrollbar for CareerBot chat */
+      .careerbot-messages::-webkit-scrollbar {
+        width: 6px;
+      }
+      .careerbot-messages::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+      }
+      .careerbot-messages::-webkit-scrollbar-thumb {
+        background: #cbd5e0;
+        border-radius: 10px;
+      }
+      .careerbot-messages::-webkit-scrollbar-thumb:hover {
+        background: #a0aec0;
+      }
     </style>
   <script type="importmap">
 {

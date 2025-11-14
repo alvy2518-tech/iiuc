@@ -1,10 +1,7 @@
 import axios from 'axios';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
-console.log('API URL configured:', API_URL);
-if (!process.env.NEXT_PUBLIC_API_URL) {
-  console.warn('NEXT_PUBLIC_API_URL not set, using default:', API_URL);
-}
+console.log(API_URL);
 
 // Create axios instance
 const api = axios.create({
@@ -270,21 +267,5 @@ export const coursesAPI = {
   
   // Delete a course
   deleteCourse: (courseId: string) => api.delete(`/courses/${courseId}`),
-};
-
-// CV/Profile Assistant API
-export const cvAPI = {
-  // Get full profile data for CV
-  getProfile: () => api.get('/cv/profile'),
-  
-  // Generate professional summary
-  generateSummary: () => api.post('/cv/summary'),
-  
-  // Enhance bullet points for experience/projects
-  enhanceBullets: (type: 'experience' | 'projects') => 
-    api.post('/cv/enhance-bullets', { type }),
-  
-  // Generate recommendations
-  generateRecommendations: () => api.post('/cv/recommendations'),
 };
 
