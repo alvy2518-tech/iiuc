@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import jsPDF from 'jspdf'
-import html2canvas from 'html2canvas'
+import html2canvas from 'html2canvas-pro'
 
 interface CourseNotes {
   courseTitle: string
@@ -99,7 +99,75 @@ export function CourseNotesViewer({ notes, onClose }: CourseNotesViewerProps) {
             useCORS: true,
             logging: false,
             backgroundColor: '#ffffff',
-            windowWidth: 1200
+            windowWidth: 1200,
+            onclone: (clonedDoc) => {
+              // Ensure all colors are RGB using computed styles
+              const allClonedElements = clonedDoc.querySelectorAll('*')
+              allClonedElements.forEach((clonedEl: any) => {
+                if (clonedEl instanceof HTMLElement) {
+                  try {
+                    const inlineStyle = clonedEl.style
+                    const computedStyle = window.getComputedStyle(clonedEl)
+                    
+                    // Helper to convert to RGB
+                    const toRgb = (colorValue: string): string => {
+                      if (!colorValue || colorValue === 'none' || colorValue === 'transparent') return ''
+                      if (colorValue.startsWith('rgb') || colorValue.startsWith('#')) return colorValue
+                      try {
+                        const canvas = document.createElement('canvas')
+                        const ctx = canvas.getContext('2d')
+                        if (ctx) {
+                          ctx.fillStyle = colorValue
+                          const converted = ctx.fillStyle
+                          if (converted && (converted.startsWith('rgb') || converted.startsWith('#'))) {
+                            return converted
+                          }
+                        }
+                      } catch (e) {}
+                      return ''
+                    }
+                    
+                    // Use computed styles (already RGB)
+                    if (inlineStyle.backgroundColor) {
+                      const rgb = toRgb(inlineStyle.backgroundColor)
+                      if (rgb) {
+                        inlineStyle.backgroundColor = rgb
+                      } else if (computedStyle.backgroundColor && computedStyle.backgroundColor !== 'rgba(0, 0, 0, 0)') {
+                        inlineStyle.backgroundColor = computedStyle.backgroundColor
+                      }
+                    }
+                    
+                    if (inlineStyle.color) {
+                      const rgb = toRgb(inlineStyle.color)
+                      if (rgb) {
+                        inlineStyle.color = rgb
+                      } else if (computedStyle.color) {
+                        inlineStyle.color = computedStyle.color
+                      }
+                    }
+                    
+                    if (inlineStyle.borderColor) {
+                      const rgb = toRgb(inlineStyle.borderColor)
+                      if (rgb) {
+                        inlineStyle.borderColor = rgb
+                      } else if (computedStyle.borderColor && computedStyle.borderColor !== 'rgba(0, 0, 0, 0)') {
+                        inlineStyle.borderColor = computedStyle.borderColor
+                      }
+                    }
+                    
+                    // Handle backgroundImage with oklab
+                    if (inlineStyle.backgroundImage && inlineStyle.backgroundImage.includes('oklab')) {
+                      if (computedStyle.backgroundColor && computedStyle.backgroundColor !== 'rgba(0, 0, 0, 0)') {
+                        inlineStyle.backgroundImage = 'none'
+                        inlineStyle.backgroundColor = computedStyle.backgroundColor
+                      }
+                    }
+                  } catch (e) {
+                    // Silently ignore errors
+                  }
+                }
+              })
+            }
           })
 
           const imgData = canvas.toDataURL('image/jpeg', 0.95)

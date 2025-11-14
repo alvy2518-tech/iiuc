@@ -12,7 +12,7 @@ import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { cvAPI } from "@/lib/api"
 import { CommonNavbar } from "@/components/common-navbar"
-import html2canvas from "html2canvas"
+import html2canvas from "html2canvas-pro"
 import jsPDF from "jspdf"
 
 interface Profile {
@@ -231,76 +231,75 @@ export default function CVBuilderPage() {
       clonedContent.style.border = 'none'
       clonedContent.style.borderRadius = '0'
       
-      // Ensure all styles are preserved - remove any max-width constraints
+      // Ensure all styles are preserved - getComputedStyle already converts oklab to RGB!
       const allElements = clonedContent.querySelectorAll('*')
       allElements.forEach((el: any) => {
         if (el instanceof HTMLElement) {
-          // Keep existing computed styles
+          // Get computed styles - browser automatically converts oklab to RGB
           const computedStyle = window.getComputedStyle(el)
           
-          // Helper function to check if color is valid (not lab/lch/oklab)
-          const isValidColor = (color: string) => {
-            if (!color || color === 'none' || color === 'transparent') return false
-            // Check for unsupported color formats
-            if (color.includes('lab(') || color.includes('lch(') || color.includes('oklab(') || color.includes('oklch(')) {
-              return false
+          // Helper to safely get RGB color from computed style
+          const getRgbColor = (colorValue: string): string => {
+            if (!colorValue || colorValue === 'none' || colorValue === 'transparent' || colorValue === 'rgba(0, 0, 0, 0)') {
+              return ''
             }
-            return true
-          }
-          
-          // Helper function to convert computed color to rgb if needed
-          const getSafeColor = (color: string) => {
-            if (!isValidColor(color)) {
-              // Return a safe default or try to get the actual rendered color
+            // Computed styles are already in RGB format, but check if it's a valid color
+            if (colorValue.startsWith('rgb') || colorValue.startsWith('#')) {
+              return colorValue
+            }
+            // Try to convert using canvas (handles any color format)
+            try {
               const canvas = document.createElement('canvas')
               canvas.width = 1
               canvas.height = 1
               const ctx = canvas.getContext('2d')
               if (ctx) {
-                try {
-                  ctx.fillStyle = color
-                  return ctx.fillStyle // This will return rgb/rgba format
-                } catch {
-                  return '' // Return empty if conversion fails
+                ctx.fillStyle = colorValue
+                const converted = ctx.fillStyle
+                // Only return if it's a valid RGB color
+                if (converted && (converted.startsWith('rgb') || converted.startsWith('#'))) {
+                  return converted
                 }
               }
+            } catch (e) {
+              // Ignore conversion errors
             }
-            return color
+            return ''
           }
           
-          // Preserve backgrounds, gradients, colors with safety checks
-          const bgImage = computedStyle.backgroundImage
-          if (bgImage && bgImage !== 'none') {
-            // Handle gradients - convert any lab colors
-            if (bgImage.includes('gradient')) {
-              // For gradients, keep them as is but we'll handle in a different way
-              el.style.backgroundImage = bgImage
-            } else {
-              el.style.backgroundImage = bgImage
-            }
-          }
-          
+          // Apply computed styles directly (already converted to RGB by browser)
           const bgColor = computedStyle.backgroundColor
-          if (bgColor && isValidColor(bgColor)) {
-            el.style.backgroundColor = getSafeColor(bgColor)
-          } else if (bgColor) {
-            // Try to get the actual color from the element
-            const rect = el.getBoundingClientRect()
-            if (rect.width > 0 && rect.height > 0) {
-              el.style.backgroundColor = ''
-              // Keep the original class for now
+          if (bgColor && bgColor !== 'rgba(0, 0, 0, 0)' && bgColor !== 'transparent') {
+            const rgbColor = getRgbColor(bgColor)
+            if (rgbColor) {
+              el.style.backgroundColor = rgbColor
             }
           }
           
           const textColor = computedStyle.color
-          if (textColor && isValidColor(textColor)) {
-            el.style.color = getSafeColor(textColor)
+          if (textColor) {
+            const rgbColor = getRgbColor(textColor)
+            if (rgbColor) {
+              el.style.color = rgbColor
+            }
           }
           
-          // Preserve borders and shadows with safety checks
+          // Handle background images (gradients)
+          const bgImage = computedStyle.backgroundImage
+          if (bgImage && bgImage !== 'none') {
+            // For gradients, we need to check if html2canvas can handle them
+            // If the gradient contains oklab in the original CSS, computed style might still have it
+            // So we'll let html2canvas handle it, but provide a fallback
+            el.style.backgroundImage = bgImage
+          }
+          
+          // Preserve borders
           const borderColor = computedStyle.borderColor
-          if (borderColor && isValidColor(borderColor)) {
-            el.style.borderColor = getSafeColor(borderColor)
+          if (borderColor && borderColor !== 'rgba(0, 0, 0, 0)') {
+            const rgbColor = getRgbColor(borderColor)
+            if (rgbColor) {
+              el.style.borderColor = rgbColor
+            }
           }
           
           if (computedStyle.borderWidth && computedStyle.borderWidth !== '0px') {
@@ -312,12 +311,13 @@ export default function CVBuilderPage() {
             el.style.borderRadius = computedStyle.borderRadius
           }
           
+          // Preserve box shadow (computed style should already be RGB)
           const boxShadow = computedStyle.boxShadow
-          if (boxShadow && boxShadow !== 'none' && !boxShadow.includes('lab(')) {
+          if (boxShadow && boxShadow !== 'none') {
             el.style.boxShadow = boxShadow
           }
           
-          // Preserve padding, margin, display
+          // Preserve spacing
           if (computedStyle.padding) {
             el.style.padding = computedStyle.padding
           }
@@ -364,38 +364,77 @@ export default function CVBuilderPage() {
           return false
         },
         onclone: (clonedDoc) => {
-          // Final pass: remove any lab() colors that slipped through
+          // Final pass: ensure all colors are in RGB format
+          // Use computed styles which browser already converted from oklab to RGB
           const allClonedElements = clonedDoc.querySelectorAll('*')
           allClonedElements.forEach((clonedEl: any) => {
             if (clonedEl instanceof HTMLElement) {
               try {
-                // Get inline styles
                 const inlineStyle = clonedEl.style
+                const computedStyle = window.getComputedStyle(clonedEl)
                 
-                // Check and fix background
-                if (inlineStyle.background && (inlineStyle.background.includes('lab(') || inlineStyle.background.includes('lch('))) {
-                  inlineStyle.background = ''
-                }
-                if (inlineStyle.backgroundColor && (inlineStyle.backgroundColor.includes('lab(') || inlineStyle.backgroundColor.includes('lch('))) {
-                  inlineStyle.backgroundColor = ''
+                // Helper to convert any color to RGB using canvas
+                const toRgb = (colorValue: string): string => {
+                  if (!colorValue || colorValue === 'none' || colorValue === 'transparent') {
+                    return ''
+                  }
+                  // If already RGB, return as is
+                  if (colorValue.startsWith('rgb') || colorValue.startsWith('#')) {
+                    return colorValue
+                  }
+                  // Try canvas conversion
+                  try {
+                    const canvas = document.createElement('canvas')
+                    const ctx = canvas.getContext('2d')
+                    if (ctx) {
+                      ctx.fillStyle = colorValue
+                      const converted = ctx.fillStyle
+                      if (converted && (converted.startsWith('rgb') || converted.startsWith('#'))) {
+                        return converted
+                      }
+                    }
+                  } catch (e) {
+                    // Ignore
+                  }
+                  return ''
                 }
                 
-                // Check and fix colors
-                if (inlineStyle.color && (inlineStyle.color.includes('lab(') || inlineStyle.color.includes('lch('))) {
-                  inlineStyle.color = '#000000'
+                // Ensure backgroundColor is RGB
+                if (inlineStyle.backgroundColor) {
+                  const rgb = toRgb(inlineStyle.backgroundColor)
+                  if (rgb) {
+                    inlineStyle.backgroundColor = rgb
+                  } else if (computedStyle.backgroundColor && computedStyle.backgroundColor !== 'rgba(0, 0, 0, 0)') {
+                    inlineStyle.backgroundColor = computedStyle.backgroundColor
+                  }
                 }
                 
-                // Check and fix border colors
-                if (inlineStyle.borderColor && (inlineStyle.borderColor.includes('lab(') || inlineStyle.borderColor.includes('lch('))) {
-                  inlineStyle.borderColor = ''
+                // Ensure color is RGB
+                if (inlineStyle.color) {
+                  const rgb = toRgb(inlineStyle.color)
+                  if (rgb) {
+                    inlineStyle.color = rgb
+                  } else if (computedStyle.color) {
+                    inlineStyle.color = computedStyle.color
+                  }
                 }
                 
-                // Force specific colors for gradient elements
-                if (clonedEl.classList.contains('pdf-gradient-header') || 
-                    clonedEl.className.includes('gradient')) {
-                  // Set solid fallback colors for gradient elements
-                  if (!inlineStyle.backgroundColor || inlineStyle.backgroundColor.includes('lab(')) {
-                    inlineStyle.backgroundColor = '#633ff3' // Fallback to purple
+                // Ensure borderColor is RGB
+                if (inlineStyle.borderColor) {
+                  const rgb = toRgb(inlineStyle.borderColor)
+                  if (rgb) {
+                    inlineStyle.borderColor = rgb
+                  } else if (computedStyle.borderColor && computedStyle.borderColor !== 'rgba(0, 0, 0, 0)') {
+                    inlineStyle.borderColor = computedStyle.borderColor
+                  }
+                }
+                
+                // Handle backgroundImage - if it contains oklab, remove it
+                if (inlineStyle.backgroundImage && inlineStyle.backgroundImage.includes('oklab')) {
+                  // Use computed backgroundColor as fallback
+                  if (computedStyle.backgroundColor && computedStyle.backgroundColor !== 'rgba(0, 0, 0, 0)') {
+                    inlineStyle.backgroundImage = 'none'
+                    inlineStyle.backgroundColor = computedStyle.backgroundColor
                   }
                 }
               } catch (e) {
