@@ -1,50 +1,9 @@
-const axios = require('axios');
+const OpenAI = require('openai');
 
-// Gemini API configuration
-const GEMINI_API_KEY = 'AIzaSyCGYNwiZz-LZSURDdQZhmLVFTRI6cjtqm8';
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent';
-
-/**
- * Helper function to call Gemini API
- */
-async function callGeminiAPI(prompt, temperature = 0.7) {
-  try {
-    const response = await axios.post(
-      GEMINI_API_URL,
-      {
-        contents: [
-          {
-            parts: [
-              {
-                text: prompt
-              }
-            ]
-          }
-        ],
-        generationConfig: {
-          temperature: temperature,
-          maxOutputTokens: 4000,
-        }
-      },
-      {
-        headers: {
-          'x-goog-api-key': GEMINI_API_KEY,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-
-    // Extract text from Gemini response
-    const text = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) {
-      throw new Error('No response from Gemini API');
-    }
-    return text;
-  } catch (error) {
-    console.error('Gemini API Error:', error.response?.data || error.message);
-    throw new Error(`Gemini API call failed: ${error.message}`);
-  }
-}
+// Initialize OpenAI client
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 /**
  * AI Analysis Service for Job Skills and Candidate Matching
@@ -88,7 +47,7 @@ class AIAnalysisService {
         }
       `;
 
-      const response = await getOpenAI().chat.completions.create({
+      const response = await openai.chat.completions.create({
         model: 'gpt-3.5-turbo',
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.7,
@@ -150,7 +109,7 @@ class AIAnalysisService {
         Use colors: #633ff3 for level 1, #8b5cf6 for level 2, #a78bfa for level 3
       `;
 
-      const response = await getOpenAI().chat.completions.create({
+      const response = await openai.chat.completions.create({
         model: 'gpt-3.5-turbo',
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.8,
@@ -271,7 +230,7 @@ class AIAnalysisService {
         }
       `;
 
-      const response = await getOpenAI().chat.completions.create({
+      const response = await openai.chat.completions.create({
         model: 'gpt-4-turbo-preview',
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.7,
@@ -329,7 +288,7 @@ class AIAnalysisService {
         Do not include generic terms like "experience" or "knowledge".
       `;
 
-      const response = await getOpenAI().chat.completions.create({
+      const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
@@ -409,7 +368,7 @@ class AIAnalysisService {
         - Prioritize exact matches over similar ones
       `;
 
-      const response = await getOpenAI().chat.completions.create({
+      const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
@@ -475,7 +434,7 @@ class AIAnalysisService {
         Be specific about time estimates.
       `;
 
-      const response = await getOpenAI().chat.completions.create({
+      const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
@@ -623,8 +582,8 @@ class AIAnalysisService {
             },
             {
               "phase": 2,
-              "title": "Skill Upgrades",
-              "description": "Improve your existing skills to job-ready level",
+              "title": "Skill Upgrades & Frameworks",
+              "description": "Improve your existing skills and learn job-required frameworks",
               "duration": "3-4 months",
               "prerequisites": ["JavaScript"],
               "skills": [
@@ -638,9 +597,32 @@ class AIAnalysisService {
                   "time_estimate": "6 weeks",
                   "learning_path": "Focus on advanced hooks, context, and state management",
                   "resources": ["React Official Docs", "Epic React"],
-                  "unlocks": ["Next.js", "React Native"],
+                  "unlocks": ["Next.js"],
                   "required_for_jobs": ["uuid1"],
                   "gap_addressed": "Upgrade from Beginner to meet job requirements"
+                }
+              ]
+            },
+            {
+              "phase": 3,
+              "title": "Advanced Tools & Deployment",
+              "description": "Master deployment and DevOps skills",
+              "duration": "2-3 months",
+              "prerequisites": ["React", "Node.js"],
+              "skills": [
+                {
+                  "skill": "AWS",
+                  "skill_type": "new",
+                  "current_level": null,
+                  "target_level": "Intermediate",
+                  "category": "cloud_platform",
+                  "difficulty": "intermediate",
+                  "time_estimate": "6 weeks",
+                  "learning_path": "Learn core services, deployment, and management",
+                  "resources": ["AWS Training", "A Cloud Guru"],
+                  "unlocks": [],
+                  "required_for_jobs": ["uuid1", "uuid2"],
+                  "gap_addressed": "Cloud deployment skill for production apps"
                 }
               ]
             }
@@ -659,6 +641,36 @@ class AIAnalysisService {
           "summary": "Your learning journey focuses on 5 new skills and upgrading 3 existing skills to meet job requirements"
         }
         
+        CRITICAL: "UNLOCKS" FIELD LOGIC
+        - "unlocks" should ONLY include skills that meet ALL these conditions:
+          1. The skill is REQUIRED by one of the candidate's interested jobs
+          2. The candidate DOES NOT currently have this skill (it's in the missing skills list)
+          3. This skill has a PREREQUISITE relationship with the current skill
+        
+        - Example scenario:
+          * Jobs require: JavaScript, React, Node.js, Next.js, AWS, Docker
+          * Candidate has: Python, C++
+          * Missing: JavaScript, React, Node.js, Next.js, AWS, Docker
+          
+          THEN:
+          * JavaScript "unlocks": ["React", "Node.js"] (both are job-required, missing, and need JS)
+          * React "unlocks": ["Next.js"] (job-required, missing, needs React)
+          * Node.js "unlocks": [] (no other job-required skills need Node.js)
+          * AWS "unlocks": [] (standalone, no prerequisites)
+          * Docker "unlocks": [] (standalone)
+        
+        - Prerequisite relationships to consider:
+          * JavaScript → React, Vue, Angular, Node.js, TypeScript
+          * React → Next.js, React Native, Remix
+          * Node.js → Express, NestJS, Fastify
+          * Python → Django, Flask, FastAPI, Pandas, NumPy
+          * HTML/CSS → any web framework
+        
+        - DO NOT include in "unlocks":
+          * Skills the candidate already has
+          * Skills NOT required by any job
+          * Skills without prerequisite relationship (AWS, Docker, Git are standalone)
+        
         IMPORTANT RULES:
         - FIRST: Create the "skill_gap_analysis" section comparing candidate skills vs job requirements
         - For EVERY skill in learning_phases, set "skill_type" to either "new" or "upgrade"
@@ -666,6 +678,7 @@ class AIAnalysisService {
         - For "upgrade" skills: current_level = candidate's current level, target_level = required level
         - For "difficulty" field: set to "beginner"/"intermediate"/"advanced" based on how hard it is TO LEARN (not candidate's current level)
         - In "gap_addressed", explain what gap this fills (e.g., "New skill needed for job X" or "Upgrade from Beginner to Intermediate")
+        - For "unlocks" field: ONLY list job-required skills that the candidate is missing AND have a prerequisite relationship
         - For career_paths: ALWAYS fill "readiness_percentage" (e.g., "65%", "80%", "95%") - estimate how job-ready they'll be
         - Make phases LINEAR and sequential (must complete phase 1 before phase 2)
         - Group related skills together in same phase
@@ -677,12 +690,12 @@ class AIAnalysisService {
         - If candidate already has a skill at Expert level, DO NOT include it
       `;
 
-      const response = await getOpenAI().chat.completions.create({
+      const response = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
-            content: "You are an expert career advisor creating structured learning roadmaps. Return only valid JSON objects with the exact structure specified. Do NOT wrap the JSON in markdown code blocks."
+            content: "You are an expert career advisor and technical educator creating structured learning roadmaps. You deeply understand technical prerequisite relationships (e.g., you must learn JavaScript before React, React before Next.js). Return only valid JSON objects with the exact structure specified. Do NOT wrap the JSON in markdown code blocks."
           },
           {
             role: "user",
@@ -832,7 +845,7 @@ class AIAnalysisService {
         - Score should reflect realistic compatibility
       `;
 
-      const response = await getOpenAI().chat.completions.create({
+      const response = await openai.chat.completions.create({
         model: "gpt-5-nano",
         messages: [
           {
@@ -889,65 +902,81 @@ class AIAnalysisService {
 
       const difficulty = difficultyMap[skillLevel] || difficultyMap['Beginner'];
 
-      const prompt = `You must respond with STRICT JSON ONLY. No commentary, no markdown, no code blocks.
+      const prompt = `
+        You must respond with STRICT JSON ONLY. No commentary, no markdown.
 
-Generate a skill verification exam for "${skillName}" at "${skillLevel}" level.
-Requirements:
-- Exactly 10 questions
-- Questions should test ${difficulty}
-- Each question must be multiple choice with 4 options (A, B, C, D)
-- Only one correct answer per question
-- Difficulty must match ${skillLevel} level
+        Generate a skill verification exam for "${skillName}" at "${skillLevel}" level.
+        Requirements:
+        - Exactly 10 questions
+        - Questions should test ${difficulty}
+        - Each question must be multiple choice with 4 options (A, B, C, D)
+        - Only one correct answer per question
+        - Difficulty must match ${skillLevel} level
 
-Return ONLY a JSON array in this exact format (no markdown, no backticks):
-[
-  {
-    "question": "What is the purpose of...",
-    "options": {
-      "A": "Option 1",
-      "B": "Option 2",
-      "C": "Option 3",
-      "D": "Option 4"
-    },
-    "correctAnswer": "A"
-  }
-]`;
+        The response MUST be a JSON array that matches this schema exactly:
+        [
+          {
+            "question": "string",
+            "options": {
+              "A": "string",
+              "B": "string",
+              "C": "string",
+              "D": "string"
+            },
+            "correctAnswer": "A"
+          }
+        ]
 
-      console.log(`Generating exam for ${skillName} at ${skillLevel} level...`);
-      
-      // Call Gemini API
-      const responseText = await callGeminiAPI(prompt, 0.7);
-      
-      console.log('Gemini Response length:', responseText.length);
-      console.log('Response preview:', responseText.substring(0, 200));
+        Return ONLY the JSON array.`;
+
+      const response = await openai.chat.completions.create({
+        model: "gpt-4.1-nano",  // Fast, non-reasoning model
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert technical interviewer. Return ONLY a valid JSON array, nothing else."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
+        max_completion_tokens: 3000,
+        temperature: 0.7  // Add some variability to questions
+      });
+
+      // Log the full response for debugging
+      console.log('AI Response - Finish reason:', response.choices?.[0]?.finish_reason);
+      console.log('AI Response - Reasoning tokens:', response.usage?.completion_tokens_details?.reasoning_tokens);
+      console.log('AI Response - Content length:', response.choices?.[0]?.message?.content?.length || 0);
+      console.log('AI Response - Content preview:', response.choices?.[0]?.message?.content?.substring(0, 200));
 
       // Parse the response
       let questions;
       try {
-        // Remove markdown code blocks if present
-        let cleanedText = responseText.trim();
-        if (cleanedText.startsWith('```')) {
-          cleanedText = cleanedText.replace(/```json\n?|\n?```/g, '').trim();
+        const content = response.choices?.[0]?.message?.content?.trim();
+        if (!content) {
+          console.error('AI returned empty content. Model used all tokens for reasoning.');
+          console.error('Usage:', response.usage);
+          throw new Error('AI returned empty response. Try using gpt-4o-mini instead of gpt-5-mini.');
         }
-        
         // Try to extract JSON array from response
-        let jsonMatch = cleanedText.match(/\[[\s\S]*\]/);
+        let jsonMatch = content.match(/\[[\s\S]*\]/);
         if (!jsonMatch) {
-          // If no array found, try parsing the whole text
-          const parsed = JSON.parse(cleanedText);
+          // If no array found, try parsing as object
+          const parsed = JSON.parse(content);
           questions = Array.isArray(parsed) ? parsed : (parsed.questions || parsed.exam || []);
         } else {
           questions = JSON.parse(jsonMatch[0]);
         }
       } catch (parseError) {
         console.error('Parse error:', parseError);
-        console.error('Response text:', responseText);
-        throw new Error('Failed to parse exam questions from Gemini response');
+        console.error('Response content:', response.choices[0].message.content);
+        throw new Error('Failed to parse exam questions from AI response');
       }
 
       // Validate we have exactly 10 questions
       if (!Array.isArray(questions) || questions.length !== 10) {
-        console.error(`Expected 10 questions, got ${questions?.length || 0}`);
         throw new Error(`Expected 10 questions, got ${questions?.length || 0}`);
       }
 
