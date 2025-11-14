@@ -1,0 +1,84 @@
+const express = require('express');
+const cors = require('cors');
+const helmet = require('helmet');
+const compression = require('compression');
+const morgan = require('morgan');
+require('dotenv').config();
+
+const app = express();
+
+// Middleware
+app.use(helmet());
+app.use(compression());
+app.use(morgan('dev'));
+app.use(cors({
+  origin: process.env.ALLOWED_ORIGINS === '*' ? '*' : process.env.ALLOWED_ORIGINS.split(','),
+  credentials: process.env.ALLOWED_ORIGINS !== '*'
+}));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Routes
+const authRoutes = require('./routes/auth.routes');
+const profileRoutes = require('./routes/profile.routes');
+const jobRoutes = require('./routes/job.routes');
+const applicationRoutes = require('./routes/application.routes');
+const aiAnalysisRoutes = require('./routes/aiAnalysis.routes');
+const savedJobRoutes = require('./routes/savedJob.routes');
+const interviewRoutes = require('./routes/interview.routes');
+const messagingRoutes = require('./routes/messaging.routes');
+const externalJobsRoutes = require('./routes/externalJobs.routes');
+const courseRoutes = require('./routes/course.routes');
+const cvRoutes = require('./routes/cv.routes');
+
+const API_PREFIX = process.env.API_PREFIX || '/api/v1';
+
+app.use(`${API_PREFIX}/auth`, authRoutes);
+app.use(`${API_PREFIX}/profiles`, profileRoutes);
+app.use(`${API_PREFIX}/jobs`, jobRoutes);
+app.use(`${API_PREFIX}/applications`, applicationRoutes);
+app.use(`${API_PREFIX}/ai`, aiAnalysisRoutes);
+app.use(`${API_PREFIX}/saved-jobs`, savedJobRoutes);
+app.use(`${API_PREFIX}/interviews`, interviewRoutes);
+app.use(`${API_PREFIX}/messages`, messagingRoutes);
+app.use(`${API_PREFIX}/external-jobs`, externalJobsRoutes);
+app.use(`${API_PREFIX}/courses`, courseRoutes);
+app.use(`${API_PREFIX}/cv`, cvRoutes);
+
+// Health check
+app.get(`${API_PREFIX}/health`, (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV
+  });
+});
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ 
+    error: 'Not Found',
+    message: `Route ${req.url} not found`
+  });
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal Server Error',
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+  });
+});
+
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📝 Environment: ${process.env.NODE_ENV}`);
+  console.log(`🔗 Local API: http://localhost:${PORT}${API_PREFIX}`);
+  console.log(`🌐 Network API: http://<YOUR_IP>:${PORT}${API_PREFIX}`);
+});
+
+module.exports = app;
+
