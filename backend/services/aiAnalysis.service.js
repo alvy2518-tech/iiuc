@@ -582,8 +582,8 @@ class AIAnalysisService {
             },
             {
               "phase": 2,
-              "title": "Skill Upgrades",
-              "description": "Improve your existing skills to job-ready level",
+              "title": "Skill Upgrades & Frameworks",
+              "description": "Improve your existing skills and learn job-required frameworks",
               "duration": "3-4 months",
               "prerequisites": ["JavaScript"],
               "skills": [
@@ -597,9 +597,32 @@ class AIAnalysisService {
                   "time_estimate": "6 weeks",
                   "learning_path": "Focus on advanced hooks, context, and state management",
                   "resources": ["React Official Docs", "Epic React"],
-                  "unlocks": ["Next.js", "React Native"],
+                  "unlocks": ["Next.js"],
                   "required_for_jobs": ["uuid1"],
                   "gap_addressed": "Upgrade from Beginner to meet job requirements"
+                }
+              ]
+            },
+            {
+              "phase": 3,
+              "title": "Advanced Tools & Deployment",
+              "description": "Master deployment and DevOps skills",
+              "duration": "2-3 months",
+              "prerequisites": ["React", "Node.js"],
+              "skills": [
+                {
+                  "skill": "AWS",
+                  "skill_type": "new",
+                  "current_level": null,
+                  "target_level": "Intermediate",
+                  "category": "cloud_platform",
+                  "difficulty": "intermediate",
+                  "time_estimate": "6 weeks",
+                  "learning_path": "Learn core services, deployment, and management",
+                  "resources": ["AWS Training", "A Cloud Guru"],
+                  "unlocks": [],
+                  "required_for_jobs": ["uuid1", "uuid2"],
+                  "gap_addressed": "Cloud deployment skill for production apps"
                 }
               ]
             }
@@ -618,6 +641,36 @@ class AIAnalysisService {
           "summary": "Your learning journey focuses on 5 new skills and upgrading 3 existing skills to meet job requirements"
         }
         
+        CRITICAL: "UNLOCKS" FIELD LOGIC
+        - "unlocks" should ONLY include skills that meet ALL these conditions:
+          1. The skill is REQUIRED by one of the candidate's interested jobs
+          2. The candidate DOES NOT currently have this skill (it's in the missing skills list)
+          3. This skill has a PREREQUISITE relationship with the current skill
+        
+        - Example scenario:
+          * Jobs require: JavaScript, React, Node.js, Next.js, AWS, Docker
+          * Candidate has: Python, C++
+          * Missing: JavaScript, React, Node.js, Next.js, AWS, Docker
+          
+          THEN:
+          * JavaScript "unlocks": ["React", "Node.js"] (both are job-required, missing, and need JS)
+          * React "unlocks": ["Next.js"] (job-required, missing, needs React)
+          * Node.js "unlocks": [] (no other job-required skills need Node.js)
+          * AWS "unlocks": [] (standalone, no prerequisites)
+          * Docker "unlocks": [] (standalone)
+        
+        - Prerequisite relationships to consider:
+          * JavaScript → React, Vue, Angular, Node.js, TypeScript
+          * React → Next.js, React Native, Remix
+          * Node.js → Express, NestJS, Fastify
+          * Python → Django, Flask, FastAPI, Pandas, NumPy
+          * HTML/CSS → any web framework
+        
+        - DO NOT include in "unlocks":
+          * Skills the candidate already has
+          * Skills NOT required by any job
+          * Skills without prerequisite relationship (AWS, Docker, Git are standalone)
+        
         IMPORTANT RULES:
         - FIRST: Create the "skill_gap_analysis" section comparing candidate skills vs job requirements
         - For EVERY skill in learning_phases, set "skill_type" to either "new" or "upgrade"
@@ -625,6 +678,7 @@ class AIAnalysisService {
         - For "upgrade" skills: current_level = candidate's current level, target_level = required level
         - For "difficulty" field: set to "beginner"/"intermediate"/"advanced" based on how hard it is TO LEARN (not candidate's current level)
         - In "gap_addressed", explain what gap this fills (e.g., "New skill needed for job X" or "Upgrade from Beginner to Intermediate")
+        - For "unlocks" field: ONLY list job-required skills that the candidate is missing AND have a prerequisite relationship
         - For career_paths: ALWAYS fill "readiness_percentage" (e.g., "65%", "80%", "95%") - estimate how job-ready they'll be
         - Make phases LINEAR and sequential (must complete phase 1 before phase 2)
         - Group related skills together in same phase
@@ -641,7 +695,7 @@ class AIAnalysisService {
         messages: [
           {
             role: "system",
-            content: "You are an expert career advisor creating structured learning roadmaps. Return only valid JSON objects with the exact structure specified. Do NOT wrap the JSON in markdown code blocks."
+            content: "You are an expert career advisor and technical educator creating structured learning roadmaps. You deeply understand technical prerequisite relationships (e.g., you must learn JavaScript before React, React before Next.js). Return only valid JSON objects with the exact structure specified. Do NOT wrap the JSON in markdown code blocks."
           },
           {
             role: "user",
