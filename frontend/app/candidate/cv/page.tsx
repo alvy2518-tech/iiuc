@@ -336,9 +336,11 @@ export default function CVBuilderPage() {
             el.style.fontFamily = computedStyle.fontFamily
           }
           
-          // Ensure proper page breaks
+          // Ensure proper page breaks for PDF
           el.style.pageBreakInside = 'avoid'
           el.style.breakInside = 'avoid'
+          el.style.pageBreakAfter = 'auto'
+          el.style.breakAfter = 'auto'
         }
       })
       
@@ -399,12 +401,28 @@ export default function CVBuilderPage() {
                   return ''
                 }
                 
-                // Ensure backgroundColor is RGB
+                // Ensure backgroundColor is RGB - preserve inline hex/rgb colors
                 if (inlineStyle.backgroundColor) {
-                  const rgb = toRgb(inlineStyle.backgroundColor)
-                  if (rgb) {
-                    inlineStyle.backgroundColor = rgb
-                  } else if (computedStyle.backgroundColor && computedStyle.backgroundColor !== 'rgba(0, 0, 0, 0)') {
+                  // If it's already a hex color or rgb, keep it (don't override)
+                  if (inlineStyle.backgroundColor.startsWith('#') || inlineStyle.backgroundColor.startsWith('rgb')) {
+                    // Keep the inline style as is - it's already in correct format
+                  } else {
+                    const rgb = toRgb(inlineStyle.backgroundColor)
+                    if (rgb) {
+                      inlineStyle.backgroundColor = rgb
+                    } else if (computedStyle.backgroundColor && computedStyle.backgroundColor !== 'rgba(0, 0, 0, 0)') {
+                      inlineStyle.backgroundColor = computedStyle.backgroundColor
+                    }
+                  }
+                } else if (computedStyle.backgroundColor && computedStyle.backgroundColor !== 'rgba(0, 0, 0, 0)' && computedStyle.backgroundColor !== 'transparent') {
+                  // Apply computed style if no inline style exists
+                  inlineStyle.backgroundColor = computedStyle.backgroundColor
+                }
+                
+                // Also check the 'background' property
+                if (inlineStyle.background && !inlineStyle.backgroundColor) {
+                  // If background property exists but backgroundColor doesn't, try to extract it
+                  if (computedStyle.backgroundColor && computedStyle.backgroundColor !== 'rgba(0, 0, 0, 0)') {
                     inlineStyle.backgroundColor = computedStyle.backgroundColor
                   }
                 }
@@ -458,22 +476,25 @@ export default function CVBuilderPage() {
       // Remove temporary container
       document.body.removeChild(tempContainer)
       
-      // Create PDF with proper dimensions
+      // Create PDF with proper dimensions and pagination
       const imgWidth = 210 // A4 width in mm
       const imgHeight = (canvas.height * imgWidth) / canvas.width
       
       const pdf = new jsPDF({
-        orientation: imgHeight > imgWidth ? 'portrait' : 'portrait',
+        orientation: 'portrait',
         unit: 'mm',
         format: 'a4',
         compress: true
       })
       
       const pageHeight = pdf.internal.pageSize.getHeight()
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const margin = 0 // No margin for full-page rendering
+      
       let heightLeft = imgHeight
       let position = 0
       
-      // Add image to PDF - first page
+      // Add first page
       pdf.addImage(
         canvas.toDataURL('image/jpeg', 0.95),
         'JPEG',
@@ -487,7 +508,7 @@ export default function CVBuilderPage() {
       
       heightLeft -= pageHeight
       
-      // Add additional pages if content is longer than one page
+      // Add additional pages if content spans multiple pages
       while (heightLeft > 0) {
         position = heightLeft - imgHeight
         pdf.addPage()
@@ -850,83 +871,85 @@ export default function CVBuilderPage() {
             <Card className="p-0 bg-white shadow-2xl overflow-hidden border-0 pdf-preserve-colors" ref={cvRef} style={{ maxWidth: '210mm', margin: '0 auto' }}>
               {/* Modern Header with Gradient */}
               <div 
-                className="relative pdf-gradient-header bg-gradient-to-br from-[#633ff3] via-[#5330d4] to-[#7c3aed] p-8 text-white overflow-hidden"
+                className="relative pdf-gradient-header bg-gradient-to-br from-[#633ff3] via-[#5330d4] to-[#7c3aed] p-5 text-white overflow-hidden"
                 style={{ 
                   background: 'linear-gradient(135deg, #633ff3 0%, #5330d4 50%, #7c3aed 100%)',
-                  backgroundColor: '#633ff3' // Fallback solid color
+                  backgroundColor: '#633ff3', // Fallback solid color
+                  pageBreakAfter: 'avoid',
+                  breakAfter: 'avoid'
                 }}
               >
                 {/* Decorative Elements */}
-                <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-5 rounded-full -mr-32 -mt-32"></div>
-                <div className="absolute bottom-0 left-0 w-48 h-48 bg-white opacity-5 rounded-full -ml-24 -mb-24"></div>
+                <div className="absolute top-0 right-0 w-48 h-48 bg-white opacity-5 rounded-full -mr-24 -mt-24"></div>
+                <div className="absolute bottom-0 left-0 w-32 h-32 bg-white opacity-5 rounded-full -ml-16 -mb-16"></div>
                 
                 <div className="relative z-10">
-                  <h1 className="text-4xl font-extrabold mb-2 tracking-tight">{profile.full_name}</h1>
+                  <h1 className="text-3xl font-extrabold mb-1 tracking-tight">{profile.full_name}</h1>
                   {profile.headline && (
-                    <p className="text-lg font-medium text-purple-100 mb-4">{profile.headline}</p>
+                    <p className="text-base font-medium text-purple-100 mb-2">{profile.headline}</p>
                   )}
                   {profile.current_job_title && (
-                    <p className="text-base text-purple-100 mb-4">{profile.current_job_title}{profile.current_company && ` at ${profile.current_company}`}</p>
+                    <p className="text-sm text-purple-100 mb-3">{profile.current_job_title}{profile.current_company && ` at ${profile.current_company}`}</p>
                   )}
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4 text-sm">
-                    <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2">
-                      <div className="h-8 w-8 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
-                        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3 text-xs">
+                    <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-2 py-1.5">
+                      <div className="h-6 w-6 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+                        <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
                           <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>
                           <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
                         </svg>
                       </div>
-                      <span className="font-medium truncate">{profile.email}</span>
+                      <span className="font-medium truncate text-xs">{profile.email}</span>
                     </div>
                     
                     {profile.phone_number && (
-                      <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2">
-                        <div className="h-8 w-8 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
-                          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                      <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-2 py-1.5">
+                        <div className="h-6 w-6 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+                          <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
                             <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"/>
                           </svg>
                         </div>
-                        <span className="font-medium">{profile.phone_number}</span>
+                        <span className="font-medium text-xs">{profile.phone_number}</span>
                       </div>
                     )}
                     
-                    <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2">
-                      <div className="h-8 w-8 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
-                        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                    <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-2 py-1.5">
+                      <div className="h-6 w-6 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+                        <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd"/>
                         </svg>
                       </div>
-                      <span className="font-medium">{profile.city}, {profile.country}</span>
+                      <span className="font-medium text-xs">{profile.city}, {profile.country}</span>
                     </div>
                     
                     {profile.years_of_experience && (
-                      <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2">
-                        <div className="h-8 w-8 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
-                          <Briefcase className="h-4 w-4" />
+                      <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-2 py-1.5">
+                        <div className="h-6 w-6 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+                          <Briefcase className="h-3 w-3" />
                         </div>
-                        <span className="font-medium">{profile.years_of_experience} Experience</span>
+                        <span className="font-medium text-xs">{profile.years_of_experience} Experience</span>
                       </div>
                     )}
                   </div>
                   
                   {/* Social Links */}
-                  <div className="flex flex-wrap gap-3 mt-5">
+                  <div className="flex flex-wrap gap-2 mt-3">
                     {profile.linkedin_url && (
-                      <a href={profile.linkedin_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-white/20 backdrop-blur-sm hover:bg-white/30 transition-all rounded-full px-4 py-2 text-sm font-medium">
-                        <Linkedin className="h-4 w-4" />
+                      <a href={profile.linkedin_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 bg-white/20 backdrop-blur-sm hover:bg-white/30 transition-all rounded-full px-3 py-1 text-xs font-medium">
+                        <Linkedin className="h-3 w-3" />
                         LinkedIn
                       </a>
                     )}
                     {profile.github_url && (
-                      <a href={profile.github_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-white/20 backdrop-blur-sm hover:bg-white/30 transition-all rounded-full px-4 py-2 text-sm font-medium">
-                        <Github className="h-4 w-4" />
+                      <a href={profile.github_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 bg-white/20 backdrop-blur-sm hover:bg-white/30 transition-all rounded-full px-3 py-1 text-xs font-medium">
+                        <Github className="h-3 w-3" />
                         GitHub
                       </a>
                     )}
                     {profile.portfolio_website && (
-                      <a href={profile.portfolio_website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-white/20 backdrop-blur-sm hover:bg-white/30 transition-all rounded-full px-4 py-2 text-sm font-medium">
-                        <Globe className="h-4 w-4" />
+                      <a href={profile.portfolio_website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 bg-white/20 backdrop-blur-sm hover:bg-white/30 transition-all rounded-full px-3 py-1 text-xs font-medium">
+                        <Globe className="h-3 w-3" />
                         Portfolio
                       </a>
                     )}
@@ -935,19 +958,19 @@ export default function CVBuilderPage() {
               </div>
               
               {/* Content Area with Modern Styling */}
-              <div className="p-8">
+              <div className="p-5">
               
               {/* Professional Summary */}
               {(professionalSummary || profile.bio) && (
-                <div className="mb-8">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="h-10 w-10 bg-gradient-to-br from-purple-500 to-blue-500 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <FileText className="h-5 w-5 text-white" />
+                <div className="mb-5" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="h-8 w-8 bg-gradient-to-br from-purple-500 to-blue-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <FileText className="h-4 w-4 text-white" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">Professional Summary</h2>
+                    <h2 className="text-xl font-bold text-gray-900">Professional Summary</h2>
                   </div>
-                  <div className="pl-13">
-                    <p className="text-base text-gray-700 leading-relaxed">
+                  <div className="pl-10">
+                    <p className="text-sm text-gray-700 leading-relaxed">
                       {professionalSummary || profile.bio}
                     </p>
                   </div>
@@ -956,19 +979,19 @@ export default function CVBuilderPage() {
 
               {/* Skills */}
               {skills.length > 0 && (
-                <div className="mb-8">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="h-10 w-10 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <Code className="h-5 w-5 text-white" />
+                <div className="mb-5" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="h-8 w-8 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Code className="h-4 w-4 text-white" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">Technical Skills</h2>
+                    <h2 className="text-xl font-bold text-gray-900">Technical Skills</h2>
                   </div>
-                  <div className="pl-13 flex flex-wrap gap-2">
+                  <div className="pl-10 flex flex-wrap gap-1.5">
                     {skills.map((skill, idx) => (
-                      <span key={idx} className="px-4 py-2 bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-purple-200 text-gray-800 rounded-full text-sm font-medium hover:shadow-md transition-shadow">
+                      <span key={idx} className="px-2.5 py-1 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 text-gray-800 rounded-full text-xs font-medium">
                         {skill.skill_name}
-                        <span className="ml-2 text-xs text-purple-600 font-semibold">•</span>
-                        <span className="ml-1 text-xs text-gray-600">{skill.skill_level}</span>
+                        <span className="ml-1.5 text-xs text-purple-600 font-semibold">•</span>
+                        <span className="ml-0.5 text-xs text-gray-600">{skill.skill_level}</span>
                       </span>
                     ))}
                   </div>
@@ -977,40 +1000,40 @@ export default function CVBuilderPage() {
 
               {/* Experience */}
               {getDisplayExperience().length > 0 && (
-                <div className="mb-8">
-                  <div className="flex items-center gap-3 mb-5">
-                    <div className="h-10 w-10 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <Briefcase className="h-5 w-5 text-white" />
+                <div className="mb-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="h-8 w-8 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Briefcase className="h-4 w-4 text-white" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">Professional Experience</h2>
+                    <h2 className="text-xl font-bold text-gray-900">Professional Experience</h2>
                   </div>
-                  <div className="space-y-6">
+                  <div className="space-y-4">
                     {getDisplayExperience().map((exp, index) => (
-                      <div key={exp.id} className="relative pl-13">
+                      <div key={exp.id} className="relative pl-10" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                         {/* Timeline dot */}
-                        <div className="absolute left-5 top-2 h-3 w-3 rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 border-2 border-white shadow-md"></div>
+                        <div className="absolute left-4 top-1.5 h-2.5 w-2.5 rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 border-2 border-white shadow-md"></div>
                         {/* Timeline line */}
                         {index < getDisplayExperience().length - 1 && (
-                          <div className="absolute left-[26px] top-5 bottom-0 w-0.5 bg-gradient-to-b from-blue-200 to-transparent"></div>
+                          <div className="absolute left-[21px] top-4 bottom-0 w-0.5 bg-gradient-to-b from-blue-200 to-transparent"></div>
                         )}
                         
-                        <div className="bg-gradient-to-br from-gray-50 to-white border-l-4 border-blue-500 rounded-r-lg p-5 hover:shadow-lg transition-shadow">
-                          <div className="flex justify-between items-start mb-3">
+                        <div className="bg-gradient-to-br from-gray-50 to-white border-l-4 border-blue-500 rounded-r-lg p-3 hover:shadow-lg transition-shadow">
+                          <div className="flex justify-between items-start mb-2">
                             <div className="flex-1">
-                              <h3 className="text-lg font-bold text-gray-900">{exp.job_title}</h3>
-                              <p className="text-base text-blue-600 font-semibold mt-1">{exp.company}</p>
+                              <h3 className="text-base font-bold text-gray-900">{exp.job_title}</h3>
+                              <p className="text-sm text-blue-600 font-semibold mt-0.5">{exp.company}</p>
                               {exp.location && (
-                                <p className="text-sm text-gray-500 mt-1 flex items-center gap-1">
-                                  <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                                <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1">
+                                  <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20">
                                     <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd"/>
                                   </svg>
                                   {exp.location}
                                 </p>
                               )}
                             </div>
-                            <div className="ml-4 text-right">
-                              <span className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold whitespace-nowrap">
-                                <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                            <div className="ml-3 text-right">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-semibold whitespace-nowrap">
+                                <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20">
                                   <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd"/>
                                 </svg>
                                 {formatDate(exp.start_date)} - {exp.is_current ? 'Present' : formatDate(exp.end_date || '')}
@@ -1019,16 +1042,16 @@ export default function CVBuilderPage() {
                           </div>
                           
                           {exp.enhancedBulletPoints && exp.enhancedBulletPoints.length > 0 ? (
-                            <ul className="space-y-2 mt-3">
+                            <ul className="space-y-1 mt-2">
                               {exp.enhancedBulletPoints.map((bullet, idx) => (
-                                <li key={idx} className="flex items-start gap-2 text-sm text-gray-700 leading-relaxed">
-                                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-500 mt-2 flex-shrink-0"></span>
+                                <li key={idx} className="flex items-start gap-1.5 text-xs text-gray-700 leading-relaxed">
+                                  <span className="inline-block h-1 w-1 rounded-full bg-blue-500 mt-1.5 flex-shrink-0"></span>
                                   <span>{bullet}</span>
                                 </li>
                               ))}
                             </ul>
                           ) : exp.description && (
-                            <p className="text-sm text-gray-700 mt-3 leading-relaxed">{exp.description}</p>
+                            <p className="text-xs text-gray-700 mt-2 leading-relaxed">{exp.description}</p>
                           )}
                         </div>
                       </div>
@@ -1039,35 +1062,35 @@ export default function CVBuilderPage() {
 
               {/* Projects */}
               {getDisplayProjects().length > 0 && (
-                <div className="mb-8">
-                  <div className="flex items-center gap-3 mb-5">
-                    <div className="h-10 w-10 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <Code className="h-5 w-5 text-white" />
+                <div className="mb-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="h-8 w-8 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Code className="h-4 w-4 text-white" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">Featured Projects</h2>
+                    <h2 className="text-xl font-bold text-gray-900">Featured Projects</h2>
                   </div>
-                  <div className="space-y-6">
+                  <div className="space-y-4">
                     {getDisplayProjects().map((project, index) => (
-                      <div key={project.id} className="relative pl-13">
+                      <div key={project.id} className="relative pl-10" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                         {/* Timeline dot */}
-                        <div className="absolute left-5 top-2 h-3 w-3 rounded-full bg-gradient-to-br from-orange-500 to-red-500 border-2 border-white shadow-md"></div>
+                        <div className="absolute left-4 top-1.5 h-2.5 w-2.5 rounded-full bg-gradient-to-br from-orange-500 to-red-500 border-2 border-white shadow-md"></div>
                         {/* Timeline line */}
                         {index < getDisplayProjects().length - 1 && (
-                          <div className="absolute left-[26px] top-5 bottom-0 w-0.5 bg-gradient-to-b from-orange-200 to-transparent"></div>
+                          <div className="absolute left-[21px] top-4 bottom-0 w-0.5 bg-gradient-to-b from-orange-200 to-transparent"></div>
                         )}
                         
-                        <div className="bg-gradient-to-br from-orange-50 to-white border-l-4 border-orange-500 rounded-r-lg p-5 hover:shadow-lg transition-shadow">
-                          <div className="flex justify-between items-start mb-3">
+                        <div className="bg-gradient-to-br from-orange-50 to-white border-l-4 border-orange-500 rounded-r-lg p-3 hover:shadow-lg transition-shadow">
+                          <div className="flex justify-between items-start mb-2">
                             <div className="flex-1">
-                              <h3 className="text-lg font-bold text-gray-900">{project.project_title}</h3>
+                              <h3 className="text-base font-bold text-gray-900">{project.project_title}</h3>
                               {project.organization && (
-                                <p className="text-base text-orange-600 font-semibold mt-1">{project.organization}</p>
+                                <p className="text-sm text-orange-600 font-semibold mt-0.5">{project.organization}</p>
                               )}
-                              <p className="text-sm text-gray-600 mt-1">{project.project_type}</p>
+                              <p className="text-xs text-gray-600 mt-0.5">{project.project_type}</p>
                             </div>
-                            <div className="ml-4 text-right">
-                              <span className="inline-flex items-center gap-1 px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-semibold whitespace-nowrap">
-                                <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                            <div className="ml-3 text-right">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-xs font-semibold whitespace-nowrap">
+                                <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20">
                                   <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd"/>
                                 </svg>
                                 {formatDate(project.start_date)} - {project.is_ongoing ? 'Ongoing' : formatDate(project.end_date || '')}
@@ -1076,9 +1099,9 @@ export default function CVBuilderPage() {
                           </div>
                           
                           {project.technologies_used && project.technologies_used.length > 0 && (
-                            <div className="flex flex-wrap gap-2 mb-3">
+                            <div className="flex flex-wrap gap-1.5 mb-2">
                               {project.technologies_used.map((tech, idx) => (
-                                <span key={idx} className="px-3 py-1 bg-white border border-orange-200 text-gray-700 rounded-md text-xs font-medium">
+                                <span key={idx} className="px-2 py-0.5 bg-white border border-orange-200 text-gray-700 rounded-md text-xs font-medium">
                                   {tech}
                                 </span>
                               ))}
@@ -1086,21 +1109,21 @@ export default function CVBuilderPage() {
                           )}
                           
                           {project.enhancedBulletPoints && project.enhancedBulletPoints.length > 0 ? (
-                            <ul className="space-y-2 mt-3">
+                            <ul className="space-y-1 mt-2">
                               {project.enhancedBulletPoints.map((bullet, idx) => (
-                                <li key={idx} className="flex items-start gap-2 text-sm text-gray-700 leading-relaxed">
-                                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-orange-500 mt-2 flex-shrink-0"></span>
+                                <li key={idx} className="flex items-start gap-1.5 text-xs text-gray-700 leading-relaxed">
+                                  <span className="inline-block h-1 w-1 rounded-full bg-orange-500 mt-1.5 flex-shrink-0"></span>
                                   <span>{bullet}</span>
                                 </li>
                               ))}
                             </ul>
                           ) : (
-                            <p className="text-sm text-gray-700 mt-3 leading-relaxed">{project.description}</p>
+                            <p className="text-xs text-gray-700 mt-2 leading-relaxed">{project.description}</p>
                           )}
                           
                           {project.project_url && (
-                            <a href={project.project_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-3 text-sm text-orange-600 hover:text-orange-700 font-semibold hover:underline">
-                              <ExternalLink className="h-4 w-4" />
+                            <a href={project.project_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 mt-2 text-xs text-orange-600 hover:text-orange-700 font-semibold hover:underline">
+                              <ExternalLink className="h-3 w-3" />
                               View Project
                             </a>
                           )}
@@ -1113,33 +1136,33 @@ export default function CVBuilderPage() {
 
               {/* Education */}
               {education.length > 0 && (
-                <div className="mb-8">
-                  <div className="flex items-center gap-3 mb-5">
-                    <div className="h-10 w-10 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <GraduationCap className="h-5 w-5 text-white" />
+                <div className="mb-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="h-8 w-8 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <GraduationCap className="h-4 w-4 text-white" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">Education</h2>
+                    <h2 className="text-xl font-bold text-gray-900">Education</h2>
                   </div>
-                  <div className="space-y-6">
+                  <div className="space-y-4">
                     {education.map((edu, index) => (
-                      <div key={edu.id} className="relative pl-13">
+                      <div key={edu.id} className="relative pl-10" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                         {/* Timeline dot */}
-                        <div className="absolute left-5 top-2 h-3 w-3 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 border-2 border-white shadow-md"></div>
+                        <div className="absolute left-4 top-1.5 h-2.5 w-2.5 rounded-full bg-gradient-to-br from-green-500 to-emerald-500 border-2 border-white shadow-md"></div>
                         {/* Timeline line */}
                         {index < education.length - 1 && (
-                          <div className="absolute left-[26px] top-5 bottom-0 w-0.5 bg-gradient-to-b from-green-200 to-transparent"></div>
+                          <div className="absolute left-[21px] top-4 bottom-0 w-0.5 bg-gradient-to-b from-green-200 to-transparent"></div>
                         )}
                         
-                        <div className="bg-gradient-to-br from-green-50 to-white border-l-4 border-green-500 rounded-r-lg p-5 hover:shadow-lg transition-shadow">
+                        <div className="bg-gradient-to-br from-green-50 to-white border-l-4 border-green-500 rounded-r-lg p-3 hover:shadow-lg transition-shadow">
                           <div className="flex justify-between items-start mb-2">
                             <div className="flex-1">
-                              <h3 className="text-lg font-bold text-gray-900">{edu.degree}</h3>
-                              <p className="text-base text-green-600 font-semibold mt-1">{edu.institution}</p>
-                              <p className="text-sm text-gray-600 mt-1">{edu.field_of_study}</p>
+                              <h3 className="text-base font-bold text-gray-900">{edu.degree}</h3>
+                              <p className="text-sm text-green-600 font-semibold mt-0.5">{edu.institution}</p>
+                              <p className="text-xs text-gray-600 mt-0.5">{edu.field_of_study}</p>
                             </div>
-                            <div className="ml-4 text-right">
-                              <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold whitespace-nowrap">
-                                <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                            <div className="ml-3 text-right">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-semibold whitespace-nowrap">
+                                <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20">
                                   <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd"/>
                                 </svg>
                                 {formatDate(edu.start_date)} - {edu.is_current ? 'Present' : formatDate(edu.end_date || '')}
@@ -1148,15 +1171,22 @@ export default function CVBuilderPage() {
                           </div>
                           
                           {edu.grade && (
-                            <div className="mt-3 inline-flex items-center gap-2 px-3 py-1 bg-white border border-green-200 rounded-md">
-                              <Award className="h-4 w-4 text-green-600" />
-                              <span className="text-sm font-semibold text-gray-700">Grade:</span>
-                              <span className="text-sm text-gray-900">{edu.grade}</span>
+                            <div 
+                              className="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 border border-green-200 rounded-md"
+                              style={{
+                                backgroundColor: '#f0fdf4',
+                                background: '#f0fdf4',
+                                color: '#000000'
+                              }}
+                            >
+                              <Award className="h-3 w-3 text-green-600" style={{ color: '#16a34a' }} />
+                              <span className="text-xs font-semibold text-gray-700" style={{ color: '#374151' }}>Grade:</span>
+                              <span className="text-xs text-gray-900" style={{ color: '#111827' }}>{edu.grade}</span>
                             </div>
                           )}
                           
                           {edu.achievements && (
-                            <p className="text-sm text-gray-700 mt-3 leading-relaxed">{edu.achievements}</p>
+                            <p className="text-xs text-gray-700 mt-2 leading-relaxed">{edu.achievements}</p>
                           )}
                         </div>
                       </div>
@@ -1167,27 +1197,27 @@ export default function CVBuilderPage() {
 
               {/* Certifications */}
               {certifications.length > 0 && (
-                <div className="mb-8">
-                  <div className="flex items-center gap-3 mb-5">
-                    <div className="h-10 w-10 bg-gradient-to-br from-yellow-500 to-amber-500 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <Award className="h-5 w-5 text-white" />
+                <div className="mb-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="h-8 w-8 bg-gradient-to-br from-yellow-500 to-amber-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Award className="h-4 w-4 text-white" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900">Certifications & Awards</h2>
+                    <h2 className="text-xl font-bold text-gray-900">Certifications & Awards</h2>
                   </div>
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     {certifications.map((cert) => (
-                      <div key={cert.id} className="pl-13">
-                        <div className="bg-gradient-to-br from-yellow-50 to-white border-l-4 border-yellow-500 rounded-r-lg p-4 hover:shadow-lg transition-shadow">
-                          <div className="flex items-start gap-3">
-                            <div className="h-12 w-12 bg-yellow-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                              <Award className="h-6 w-6 text-yellow-600" />
+                      <div key={cert.id} className="pl-10" style={{ pageBreakInside: 'avoid', breakInside: 'avoid' }}>
+                        <div className="bg-gradient-to-br from-yellow-50 to-white border-l-4 border-yellow-500 rounded-r-lg p-3 hover:shadow-lg transition-shadow">
+                          <div className="flex items-start gap-2">
+                            <div className="h-8 w-8 bg-yellow-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                              <Award className="h-4 w-4 text-yellow-600" />
                             </div>
                             <div className="flex-1">
-                              <h3 className="text-base font-bold text-gray-900">{cert.certification_name}</h3>
-                              <p className="text-sm text-yellow-600 font-semibold mt-1">{cert.issuing_organization}</p>
-                              <div className="flex items-center gap-4 mt-2 text-xs text-gray-600">
+                              <h3 className="text-sm font-bold text-gray-900">{cert.certification_name}</h3>
+                              <p className="text-xs text-yellow-600 font-semibold mt-0.5">{cert.issuing_organization}</p>
+                              <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-600">
                                 <span className="flex items-center gap-1">
-                                  <CheckCircle2 className="h-3 w-3 text-green-500" />
+                                  <CheckCircle2 className="h-2.5 w-2.5 text-green-500" />
                                   Issued: {formatDate(cert.issue_date)}
                                 </span>
                                 {cert.expiry_date && (
@@ -1195,7 +1225,7 @@ export default function CVBuilderPage() {
                                 )}
                               </div>
                               {cert.credential_id && (
-                                <p className="text-xs text-gray-500 mt-2 font-mono bg-gray-100 inline-block px-2 py-1 rounded">
+                                <p className="text-xs text-gray-500 mt-1.5 font-mono bg-gray-100 inline-block px-1.5 py-0.5 rounded">
                                   ID: {cert.credential_id}
                                 </p>
                               )}
