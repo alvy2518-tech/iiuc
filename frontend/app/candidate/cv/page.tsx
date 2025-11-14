@@ -214,9 +214,10 @@ export default function CVBuilderPage() {
       tempContainer.style.position = 'absolute'
       tempContainer.style.left = '-9999px'
       tempContainer.style.width = '210mm' // A4 width
-      tempContainer.style.padding = '20mm'
+      tempContainer.style.padding = '10mm 15mm' // Top/bottom: 10mm, Left/right: 15mm
       tempContainer.style.backgroundColor = '#ffffff'
       tempContainer.style.fontFamily = "'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
+      tempContainer.style.boxSizing = 'border-box'
       
       // Clone the CV content
       const clonedContent = cvRef.current.cloneNode(true) as HTMLElement
@@ -227,114 +228,273 @@ export default function CVBuilderPage() {
       clonedContent.style.color = '#1a1a1a'
       clonedContent.style.fontSize = '11pt'
       clonedContent.style.lineHeight = '1.6'
+      clonedContent.style.margin = '0'
+      clonedContent.style.padding = '0'
       
-      // Style all sections for PDF
-      const sections = clonedContent.querySelectorAll('[class*="mb-6"]')
+      // Remove Card padding and apply our own
+      const cardElement = clonedContent.querySelector('[class*="Card"]') || clonedContent
+      if (cardElement && cardElement instanceof HTMLElement && cardElement.style) {
+        cardElement.style.setProperty('padding', '0')
+        cardElement.style.setProperty('margin', '0')
+        cardElement.style.setProperty('box-shadow', 'none')
+        cardElement.style.setProperty('border', 'none')
+      }
+      
+      // Style all sections for PDF with better spacing
+      const sections = clonedContent.querySelectorAll('[class*="mb-6"], [class*="mb-4"]')
       sections.forEach((section: any) => {
-        section.style.marginBottom = '20px'
-        section.style.pageBreakInside = 'avoid'
+        if (section instanceof HTMLElement && section.style) {
+          section.style.setProperty('margin-bottom', '18px')
+          section.style.setProperty('margin-top', '0')
+          section.style.setProperty('page-break-inside', 'avoid')
+          section.style.setProperty('break-inside', 'avoid')
+        }
       })
+      
+      // Style the header section specifically
+      const headerSection = clonedContent.querySelector('[class*="border-b"]')
+      if (headerSection && headerSection instanceof HTMLElement && headerSection.style) {
+        headerSection.style.setProperty('margin-bottom', '16px')
+        headerSection.style.setProperty('padding-bottom', '12px')
+      }
       
       // Style headers
       const headers = clonedContent.querySelectorAll('h1, h2')
       headers.forEach((header: any) => {
-        if (header.tagName === 'H1') {
-          header.style.fontSize = '28pt'
-          header.style.fontWeight = '700'
-          header.style.color = '#1a1a1a'
-          header.style.marginBottom = '10px'
-          header.style.borderBottom = '3px solid #633ff3'
-          header.style.paddingBottom = '10px'
-        } else if (header.tagName === 'H2') {
-          header.style.fontSize = '16pt'
-          header.style.fontWeight = '600'
-          header.style.color = '#633ff3'
-          header.style.marginTop = '20px'
-          header.style.marginBottom = '12px'
-          header.style.borderBottom = '2px solid #e5e7eb'
-          header.style.paddingBottom = '6px'
+        if (header instanceof HTMLElement && header.style) {
+          if (header.tagName === 'H1') {
+            header.style.setProperty('font-size', '24pt')
+            header.style.setProperty('font-weight', '700')
+            header.style.setProperty('color', '#1a1a1a')
+            header.style.setProperty('margin-top', '0')
+            header.style.setProperty('margin-bottom', '8px')
+            header.style.setProperty('padding-bottom', '8px')
+            header.style.setProperty('border-bottom', '3px solid #633ff3')
+          } else if (header.tagName === 'H2') {
+            header.style.setProperty('font-size', '14pt')
+            header.style.setProperty('font-weight', '600')
+            header.style.setProperty('color', '#633ff3')
+            header.style.setProperty('margin-top', '16px')
+            header.style.setProperty('margin-bottom', '10px')
+            header.style.setProperty('padding-bottom', '5px')
+            header.style.setProperty('border-bottom', '2px solid #e5e7eb')
+            header.style.setProperty('page-break-after', 'avoid')
+          }
         }
       })
       
-      // Style text
-      const textElements = clonedContent.querySelectorAll('p, div, span')
-      textElements.forEach((el: any) => {
-        if (el.style) {
-          el.style.color = '#374151'
-          el.style.fontSize = '11pt'
+      // Style contact info
+      const contactInfo = clonedContent.querySelectorAll('[class*="text-sm"]')
+      contactInfo.forEach((el: any) => {
+        if (el instanceof HTMLElement && el.style && el.textContent && (el.textContent.includes('@') || el.textContent.includes('+') || el.textContent.includes(','))) {
+          el.style.setProperty('margin-bottom', '4px')
+          el.style.setProperty('font-size', '10pt')
+          el.style.setProperty('line-height', '1.5')
+        }
+      })
+      
+      // Style paragraphs and text
+      const paragraphs = clonedContent.querySelectorAll('p')
+      paragraphs.forEach((p: any) => {
+        if (p instanceof HTMLElement && p.style) {
+          p.style.setProperty('color', '#374151')
+          p.style.setProperty('font-size', '10.5pt')
+          p.style.setProperty('line-height', '1.6')
+          p.style.setProperty('margin-top', '0')
+          p.style.setProperty('margin-bottom', '8px')
         }
       })
       
       // Style badges
-      const badges = clonedContent.querySelectorAll('[class*="Badge"]')
+      const badges = clonedContent.querySelectorAll('[class*="Badge"], span[class*="bg-"]')
       badges.forEach((badge: any) => {
-        badge.style.backgroundColor = '#f3f4f6'
-        badge.style.color = '#1f2937'
-        badge.style.padding = '4px 10px'
-        badge.style.borderRadius = '4px'
-        badge.style.fontSize = '9pt'
-        badge.style.display = 'inline-block'
-        badge.style.margin = '2px'
+        if (badge instanceof HTMLElement && badge.style) {
+          badge.style.setProperty('background-color', '#f3f4f6')
+          badge.style.setProperty('color', '#1f2937')
+          badge.style.setProperty('padding', '3px 8px')
+          badge.style.setProperty('border-radius', '3px')
+          badge.style.setProperty('font-size', '9pt')
+          badge.style.setProperty('display', 'inline-block')
+          badge.style.setProperty('margin', '2px 4px 2px 0')
+          badge.style.setProperty('vertical-align', 'middle')
+        }
       })
       
       // Style links
       const links = clonedContent.querySelectorAll('a')
       links.forEach((link: any) => {
-        link.style.color = '#633ff3'
-        link.style.textDecoration = 'none'
+        if (link instanceof HTMLElement && link.style) {
+          link.style.setProperty('color', '#633ff3')
+          link.style.setProperty('text-decoration', 'none')
+          link.style.setProperty('font-size', '10pt')
+        }
+      })
+      
+      // Style experience/project/education items
+      const items = clonedContent.querySelectorAll('[class*="border-l-4"]')
+      items.forEach((item: any) => {
+        if (item instanceof HTMLElement && item.style) {
+          item.style.setProperty('margin-bottom', '14px')
+          item.style.setProperty('padding-left', '12px')
+          item.style.setProperty('page-break-inside', 'avoid')
+        }
       })
       
       // Style lists
       const lists = clonedContent.querySelectorAll('ul')
       lists.forEach((list: any) => {
-        list.style.marginLeft = '20px'
-        list.style.marginTop = '8px'
-        list.style.marginBottom = '8px'
+        if (list instanceof HTMLElement && list.style) {
+          list.style.setProperty('margin-left', '18px')
+          list.style.setProperty('margin-top', '6px')
+          list.style.setProperty('margin-bottom', '6px')
+          list.style.setProperty('padding-left', '0')
+        }
       })
       
       const listItems = clonedContent.querySelectorAll('li')
       listItems.forEach((li: any) => {
-        li.style.marginBottom = '4px'
-        li.style.fontSize = '10pt'
-        li.style.color = '#4b5563'
+        if (li instanceof HTMLElement && li.style) {
+          li.style.setProperty('margin-bottom', '3px')
+          li.style.setProperty('font-size', '10pt')
+          li.style.setProperty('color', '#4b5563')
+          li.style.setProperty('line-height', '1.5')
+        }
+      })
+      
+      // Style date ranges and metadata
+      const dateRanges = clonedContent.querySelectorAll('[class*="text-sm"][class*="text-gray"]')
+      dateRanges.forEach((el: any) => {
+        if (el instanceof HTMLElement && el.style && el.textContent && (el.textContent.includes('Present') || el.textContent.includes('20'))) {
+          el.style.setProperty('font-size', '9.5pt')
+          el.style.setProperty('margin-bottom', '4px')
+        }
+      })
+      
+      // Ensure proper spacing for flex containers
+      const flexContainers = clonedContent.querySelectorAll('[class*="flex"]')
+      flexContainers.forEach((container: any) => {
+        if (container instanceof HTMLElement && container.style) {
+          container.style.setProperty('gap', '8px')
+        }
       })
       
       tempContainer.appendChild(clonedContent)
       document.body.appendChild(tempContainer)
       
-      // Generate canvas
-      const canvas = await html2canvas(tempContainer, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-        width: tempContainer.scrollWidth,
-        height: tempContainer.scrollHeight
-      })
+      // Generate canvas - html2canvas will handle the rendering
+      // Wrap in try-catch to handle any color parsing errors
+      let canvas
+      try {
+        canvas = await html2canvas(tempContainer, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+          width: tempContainer.scrollWidth,
+          height: tempContainer.scrollHeight,
+          onclone: (clonedDoc) => {
+            // Remove external stylesheets that might contain lab() colors
+            try {
+              const linkTags = clonedDoc.querySelectorAll('link[rel="stylesheet"]')
+              linkTags.forEach((tag) => {
+                tag.remove()
+              })
+              
+              // Process all elements to ensure colors are in supported format
+              const allElements = clonedDoc.querySelectorAll('*')
+              allElements.forEach((el: any) => {
+                if (el.style) {
+                  try {
+                    // Use the cloned document's window for getComputedStyle
+                    const win = clonedDoc.defaultView || (clonedDoc as any).parentWindow
+                    if (win) {
+                      const computed = win.getComputedStyle(el)
+                      
+                      // Convert colors to rgb/hex format (getComputedStyle should already return rgb)
+                      const color = computed.color
+                      const bgColor = computed.backgroundColor
+                      const borderColor = computed.borderColor
+                      
+                      // Only update if the value is valid and not transparent
+                      if (color && !color.includes('lab(') && color !== 'rgba(0, 0, 0, 0)') {
+                        el.style.color = color
+                      }
+                      if (bgColor && !bgColor.includes('lab(') && bgColor !== 'rgba(0, 0, 0, 0)') {
+                        el.style.backgroundColor = bgColor
+                      }
+                      if (borderColor && !borderColor.includes('lab(') && borderColor !== 'rgba(0, 0, 0, 0)') {
+                        el.style.borderColor = borderColor
+                      }
+                    }
+                  } catch (e) {
+                    // Ignore errors for individual elements
+                  }
+                }
+              })
+            } catch (e) {
+              console.warn('Error processing cloned document:', e)
+            }
+          }
+        })
+      } catch (error: any) {
+        // If html2canvas fails due to color parsing, try with simpler options
+        console.warn('html2canvas error, retrying with simplified options:', error)
+        canvas = await html2canvas(tempContainer, {
+          scale: 1.5,
+          useCORS: false,
+          logging: false,
+          backgroundColor: '#ffffff',
+          allowTaint: true
+        })
+      }
       
       // Remove temporary container
       document.body.removeChild(tempContainer)
       
-      // Calculate PDF dimensions
-      const imgWidth = 210 // A4 width in mm
+      // Calculate PDF dimensions with proper margins
+      const pdfWidth = 210 // A4 width in mm
+      const pdfHeight = 297 // A4 height in mm
+      const margin = 10 // Top/bottom margin in mm
+      const sideMargin = 15 // Left/right margin in mm
+      const contentWidth = pdfWidth - (sideMargin * 2)
+      const contentHeight = pdfHeight - (margin * 2)
+      
+      // Calculate image dimensions maintaining aspect ratio
+      const imgWidth = contentWidth
       const imgHeight = (canvas.height * imgWidth) / canvas.width
       
-      // Create PDF
+      // Create PDF with proper margins
       const pdf = new jsPDF('p', 'mm', 'a4')
       const pageHeight = pdf.internal.pageSize.getHeight()
-      let heightLeft = imgHeight
-      let position = 0
+      const pageWidth = pdf.internal.pageSize.getWidth()
       
-      // Add first page
-      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight)
-      heightLeft -= pageHeight
+      let heightLeft = imgHeight
+      let position = margin
+      
+      // Add first page with margins
+      pdf.addImage(
+        canvas.toDataURL('image/png', 1.0), 
+        'PNG', 
+        sideMargin, 
+        position, 
+        contentWidth, 
+        imgHeight
+      )
+      heightLeft -= contentHeight
       
       // Add additional pages if needed
       while (heightLeft > 0) {
-        position = heightLeft - imgHeight
+        position = margin - (imgHeight - heightLeft)
         pdf.addPage()
-        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight)
-        heightLeft -= pageHeight
+        pdf.addImage(
+          canvas.toDataURL('image/png', 1.0), 
+          'PNG', 
+          sideMargin, 
+          position, 
+          contentWidth, 
+          imgHeight
+        )
+        heightLeft -= contentHeight
       }
       
       // Download PDF
