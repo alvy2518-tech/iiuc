@@ -1,0 +1,224 @@
+@import "tailwindcss";
+
+/* Prevent browser extensions from causing hydration issues */
+* {
+  /* Hide attributes added by browser extensions */
+  &[bis_skin_checked],
+  &[__processed_*],
+  &[bis_status],
+  &[bis_frame_id] {
+    /* These attributes are added by browser extensions and cause hydration warnings */
+    /* React will ignore them with suppressHydrationWarning */
+  }
+}
+
+/* Design System from reference.json - LIGHT PURPLE & WHITE THEME */
+@theme inline {
+  /* Light Mode - Light Purple & White with softer contrast */
+  --color-background: 250 30% 98%;          /* #f9f8fd - Very light purple tint */
+  --color-foreground: 229 24% 12%;          /* #171a26 - Dark text */
+  --color-card: 250 35% 96%;                /* #f4f2fb - Light purple card, slightly darker than bg */
+  --color-card-foreground: 229 24% 12%;     /* #171a26 - Dark text on cards */
+  --color-primary: 252 88% 60%;             /* #633ff3 - Purple primary */
+  --color-primary-foreground: 0 0% 100%;    /* #ffffff - White text on purple */
+  --color-secondary: 250 30% 94%;           /* #eeebf9 - Light purple/gray */
+  --color-secondary-foreground: 229 24% 20%; /* #272b3f - Dark text */
+  --color-muted: 250 30% 94%;               /* #eeebf9 - Light purple/gray */
+  --color-muted-foreground: 222 12% 45%;    /* #656d81 - Muted text */
+  --color-accent: 252 88% 60%;              /* #633ff3 - Purple accent */
+  --color-accent-foreground: 229 24% 20%;   /* #272b3f */
+  --color-destructive: 0 84% 60%;           /* #ef4343 - Red */
+  --color-destructive-foreground: 0 0% 100%; /* #ffffff */
+  --color-border: 250 30% 88%;              /* #dcd6f0 - Soft purple border */
+  --color-input: 250 30% 90%;               /* #e5e0f4 - Soft purple input border */
+  --color-ring: 252 88% 60%;                /* #633ff3 - Purple focus ring */
+  
+  /* Fonts */
+  --font-sans: 'Inter', 'Inter var', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  
+  /* Border Radius */
+  --radius-sm: 0.625rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius: 0.75rem;
+}
+
+/* Dark Mode - Purple & Deep Purple with softer contrast */
+.dark {
+  --color-background: 250 30% 8%;           /* #0f0d14 - Deep purple-black with purple tint */
+  --color-foreground: 250 15% 95%;          /* #f2f1f5 - Soft white with purple tint */
+  --color-card: 250 28% 11%;                /* #17141f - Lighter purple card */
+  --color-card-foreground: 250 15% 95%;     /* #f2f1f5 - Soft white text on cards */
+  --color-primary: 252 88% 60%;             /* #633ff3 - Purple primary (same) */
+  --color-primary-foreground: 0 0% 100%;    /* #ffffff - White text */
+  --color-secondary: 250 25% 14%;           /* #1d1a26 - Dark purple-gray */
+  --color-secondary-foreground: 250 15% 95%; /* #f2f1f5 - Soft white text */
+  --color-muted: 250 25% 14%;               /* #1d1a26 - Dark purple-gray */
+  --color-muted-foreground: 250 10% 60%;    /* #969199 - Purple-tinted muted text */
+  --color-accent: 252 88% 60%;              /* #633ff3 - Purple accent */
+  --color-accent-foreground: 250 15% 95%;   /* #f2f1f5 */
+  --color-destructive: 0 62.8% 30.6%;       /* #7f1d1d - Dark red */
+  --color-destructive-foreground: 210 40% 98%; /* #f8fafc */
+  --color-border: 250 25% 20%;              /* #2d2733 - Soft purple border */
+  --color-input: 250 25% 18%;               /* #27232e - Soft purple input border */
+  --color-ring: 252 88% 60%;                /* #633ff3 - Purple focus ring */
+}
+
+/* Ensure base border color doesn't override utilities */
+@layer base {
+  * {
+    @apply border-border;
+  }
+}
+
+body {
+  @apply bg-background text-foreground font-sans antialiased;
+  font-feature-settings: "rlig" 1, "calt" 1;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-muted;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-muted-foreground/30 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted-foreground/50;
+}
+
+/* Glassmorphism utility - Light mode: light purple with blur */
+.glass {
+  background: rgba(244, 242, 251, 0.48); /* #f4f2fb with less transparency - matches card color */
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--color-border));
+}
+
+/* Glassmorphism utility - Dark mode: deep purple with blur */
+.dark .glass {
+  background: rgba(23, 20, 31, 0.85); /* #17141f with some transparency - matches dark card color */
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--color-border));
+}
+
+/* Safe area for mobile - sidebar support */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-bottom {
+    padding-bottom: calc(env(safe-area-inset-bottom) + 0.75rem);
+  }
+}
+
+/* Smooth transitions for sidebar and content */
+@media (min-width: 1024px) {
+  .sidebar-content {
+    transition: margin-left 0.3s ease-in-out;
+  }
+}
+
+/* Custom animations */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes messageSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.message-enter {
+  animation: messageSlideIn 0.2s ease-out;
+}
+
+/* Smooth message transitions */
+.message-transition {
+  transition: all 0.2s ease-out;
+}
+
+/* Hide scrollbar but keep functionality */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Custom Select Dropdown Option Styling */
+select {
+  color-scheme: light;
+}
+
+.dark select {
+  color-scheme: dark;
+}
+
+select option {
+  background-color: rgba(249, 248, 253, 0.25);
+  color: #171a26;
+  padding: 10px 12px;
+  font-weight: 500;
+}
+
+.dark select option {
+  background-color: #17141f;
+  color: #f2f1f5;
+}
+
+select option:checked,
+select option:focus {
+  background: linear-gradient(#633ff3, #633ff3);
+  background-color: #633ff3 !important;
+  color: white !important;
+}
+
+select option:hover {
+  background-color: #eeebf9;
+}
+
+.dark select option:hover {
+  background-color: #1d1a26;
+}
+
+/* Prevent header flash/blink on page navigation */
+header {
+  contain: layout style paint;
+  will-change: auto;
+}
+
+/* Smooth page transitions */
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  body {
+    @apply antialiased;
+  }
+}
