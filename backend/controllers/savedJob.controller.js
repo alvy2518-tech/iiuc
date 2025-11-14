@@ -499,6 +499,19 @@ const getLearningRoadmap = async (req, res) => {
     console.log('Roadmap generation - Candidate skills found:', candidateSkills?.length || 0);
     console.log('Roadmap generation - Candidate skills sample:', candidateSkills?.slice(0, 3) || []);
 
+    // Get candidate's current courses
+    const { data: currentCourses, error: coursesError } = await supabase
+      .from('candidate_courses')
+      .select('*')
+      .eq('candidate_id', candidateProfile.id)
+      .eq('is_archived', false);
+
+    if (coursesError) {
+      console.error('Error fetching courses:', coursesError);
+    }
+
+    console.log('Roadmap generation - Current courses found:', currentCourses?.length || 0);
+
     // Format jobs for AI
     const jobsForAI = interestedJobs.map(item => ({
       id: item.jobs.id,
@@ -576,10 +589,39 @@ const getLearningRoadmap = async (req, res) => {
     console.log('Roadmap generation - Calling AI service...');
     const roadmap = await AIAnalysisService.generateLearningRoadmap(
       candidateSkills || [],
-      jobsForAI
+      jobsForAI,
+      currentCourses || []
     );
     console.log('Roadmap generation - AI service completed successfully');
     console.log('Roadmap generation - Roadmap phases:', roadmap.learning_phases?.length || 0);
+
+    // Sync courses based on AI recommendations
+    if (roadmap.course_recommendations && currentCourses && currentCourses.length > 0) {
+      const { courses_to_archive } = roadmap.course_recommendations;
+      
+      if (courses_to_archive && courses_to_archive.length > 0) {
+        // Archive courses that are no longer needed
+        const coursesToArchiveIds = currentCourses
+          .filter(c => courses_to_archive.some(archiveSkill => 
+            c.skill_name.toLowerCase().includes(archiveSkill.toLowerCase()) || 
+            archiveSkill.toLowerCase().includes(c.skill_name.toLowerCase())
+          ))
+          .map(c => c.id);
+
+        if (coursesToArchiveIds.length > 0) {
+          const { error: archiveError } = await supabaseAdmin
+            .from('candidate_courses')
+            .update({ is_archived: true, updated_at: new Date().toISOString() })
+            .in('id', coursesToArchiveIds);
+
+          if (archiveError) {
+            console.error('Error archiving courses:', archiveError);
+          } else {
+            console.log(`Archived ${coursesToArchiveIds.length} courses`);
+          }
+        }
+      }
+    }
 
     // Cache the roadmap
     const jobIds = interestedJobs.map(item => item.job_id);
@@ -591,7 +633,10 @@ const getLearningRoadmap = async (req, res) => {
         source_job_ids: jobIds,
         total_skills_needed: roadmap.total_skills_needed,
         total_time_estimate: roadmap.total_time_estimate,
-        generated_date: new Date().toISOString()
+        generated_date: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'candidate_id'
       });
 
     if (cacheError) {

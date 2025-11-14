@@ -80,7 +80,18 @@ export default function CourseDetailPage() {
   const [showNotes, setShowNotes] = useState(false)
 
   useEffect(() => {
-    // Get course from localStorage (set by the courses page)
+    // First check for current_course (from roadmap-based courses)
+    const currentCourse = localStorage.getItem('current_course')
+    if (currentCourse) {
+      const courseData = JSON.parse(currentCourse)
+      if (courseData.id === params.id) {
+        setCourse(courseData)
+        setLoading(false)
+        return
+      }
+    }
+
+    // Fallback to generated_courses (old system)
     const storedCourses = localStorage.getItem('generated_courses')
     if (storedCourses) {
       const courses = JSON.parse(storedCourses)

@@ -246,3 +246,23 @@ export const messagingAPI = {
     api.get(`/messages/conversation/${conversationId}/calls`),
 };
 
+// Courses API
+export const coursesAPI = {
+  // Get all active courses for the candidate
+  getMyCourses: () => api.get('/courses/my-courses'),
+  
+  // Get archived courses
+  getArchivedCourses: () => api.get('/courses/archived'),
+  
+  // Add a course for a specific skill
+  addCourse: (data: { skillName: string; skillLevel: string; phaseNumber?: number }) => 
+    api.post('/courses/add', data),
+  
+  // Update watch status
+  updateWatchStatus: (courseId: string, isWatched: boolean) => 
+    api.put(`/courses/${courseId}/watch`, { isWatched }),
+  
+  // Delete a course
+  deleteCourse: (courseId: string) => api.delete(`/courses/${courseId}`),
+};
+

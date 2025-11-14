@@ -28,6 +28,7 @@ const savedJobRoutes = require('./routes/savedJob.routes');
 const interviewRoutes = require('./routes/interview.routes');
 const messagingRoutes = require('./routes/messaging.routes');
 const externalJobsRoutes = require('./routes/externalJobs.routes');
+const courseRoutes = require('./routes/course.routes');
 
 const API_PREFIX = process.env.API_PREFIX || '/api/v1';
 
@@ -40,6 +41,7 @@ app.use(`${API_PREFIX}/saved-jobs`, savedJobRoutes);
 app.use(`${API_PREFIX}/interviews`, interviewRoutes);
 app.use(`${API_PREFIX}/messages`, messagingRoutes);
 app.use(`${API_PREFIX}/external-jobs`, externalJobsRoutes);
+app.use(`${API_PREFIX}/courses`, courseRoutes);
 
 // Health check
 app.get(`${API_PREFIX}/health`, (req, res) => {

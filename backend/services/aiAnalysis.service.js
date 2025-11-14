@@ -464,9 +464,10 @@ class AIAnalysisService {
    * Generate comprehensive learning roadmap for multiple interested jobs
    * @param {Array} candidateSkills - Candidate's current skills
    * @param {Array} interestedJobs - Array of interested jobs with their skills
+   * @param {Array} currentCourses - Candidate's current courses (optional)
    * @returns {Object} Structured learning roadmap with phases
    */
-  static async generateLearningRoadmap(candidateSkills, interestedJobs) {
+  static async generateLearningRoadmap(candidateSkills, interestedJobs, currentCourses = []) {
     try {
       if (!interestedJobs || interestedJobs.length === 0) {
         return {
@@ -509,6 +510,11 @@ class AIAnalysisService {
       });
       const requiredSkillsList = Array.from(allRequiredSkills).join(', ') || 'None';
 
+      // Format current courses
+      const coursesList = currentCourses && currentCourses.length > 0
+        ? currentCourses.map(c => `- ${c.skill_name} (${c.skill_level}): "${c.video_title}" [${c.is_watched ? 'Watched' : 'Not watched'}]`).join('\n')
+        : 'None';
+
       const prompt = `
         You are a career development expert. Analyze a candidate's skills against their interested jobs and create a personalized learning roadmap.
         
@@ -520,6 +526,9 @@ class AIAnalysisService {
         
         ALL REQUIRED SKILLS FROM INTERESTED JOBS:
         ${requiredSkillsList}
+        
+        CANDIDATE'S CURRENT COURSES (video titles they are studying):
+        ${coursesList}
         
         CRITICAL ANALYSIS TASK:
         1. For EACH required skill, check if the candidate ALREADY HAS it
@@ -570,6 +579,11 @@ class AIAnalysisService {
               {"skill": "Node.js", "current_level": "Beginner", "target_level": "Advanced"}
             ],
             "skills_already_sufficient": ["Python", "C"]
+          },
+          "course_recommendations": {
+            "courses_to_keep": ["JavaScript", "React"],
+            "courses_to_archive": ["Angular"],
+            "new_courses_needed": ["Node.js", "AWS"]
           },
           "learning_phases": [
             {
@@ -734,6 +748,17 @@ class AIAnalysisService {
           * Skills NOT required by any job
           * Skills without prerequisite relationship (AWS, Docker, Git are standalone)
         
+        COURSE ANALYSIS (CRITICAL):
+        - Review the candidate's current courses list above
+        - For "courses_to_keep": Include skill names where the course is STILL NEEDED in the new roadmap
+          * Match semantically (e.g., "JavaScript" matches "JS", "React" matches "ReactJS")
+          * Consider if the skill appears in the new learning phases
+        - For "courses_to_archive": Include skill names where the course is NO LONGER NEEDED
+          * Candidate already has the skill at sufficient level
+          * Skill is not required by any interested job
+        - For "new_courses_needed": List skills in the roadmap that don't have courses yet
+          * Only include skills from learning_phases that need courses
+        
         IMPORTANT RULES:
         - FIRST: Create the "skill_gap_analysis" section comparing candidate skills vs job requirements
         - For EVERY skill in learning_phases, set "skill_type" to either "new" or "upgrade"
@@ -804,6 +829,11 @@ class AIAnalysisService {
           new_skills_needed: [],
           skills_to_upgrade: [],
           skills_already_sufficient: []
+        },
+        course_recommendations: roadmap.course_recommendations || {
+          courses_to_keep: [],
+          courses_to_archive: [],
+          new_courses_needed: []
         },
         learning_phases: roadmap.learning_phases || [],
         project_ideas: roadmap.project_ideas || [],
