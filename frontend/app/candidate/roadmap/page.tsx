@@ -11,7 +11,8 @@ import {
   CheckCircle,
   BookOpen,
   Award,
-  ArrowRight
+  ArrowRight,
+  AlertCircle
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -173,6 +174,71 @@ export default function LearningRoadmapPage() {
           </div>
         </div>
 
+        {/* Skill Gap Analysis Section */}
+        {roadmap.skill_gap_analysis && (
+          <Card className="p-8 mb-10 bg-white border-l-4 border-orange-500 shadow-lg">
+            <div className="flex items-start space-x-4">
+              <div className="p-3 bg-orange-100 rounded-lg">
+                <Target className="h-6 w-6 text-orange-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Skill Gap Analysis</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* New Skills */}
+                  {roadmap.skill_gap_analysis.new_skills_needed && roadmap.skill_gap_analysis.new_skills_needed.length > 0 && (
+                    <div className="bg-red-50 rounded-lg p-4 border-2 border-red-200">
+                      <h4 className="font-semibold text-red-900 mb-2 flex items-center">
+                        <AlertCircle className="h-4 w-4 mr-2" />
+                        New Skills Needed ({roadmap.skill_gap_analysis.new_skills_needed.length})
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        {roadmap.skill_gap_analysis.new_skills_needed.map((skill: string, idx: number) => (
+                          <Badge key={idx} className="bg-red-600 text-white border-0">{skill}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Skills to Upgrade */}
+                  {roadmap.skill_gap_analysis.skills_to_upgrade && roadmap.skill_gap_analysis.skills_to_upgrade.length > 0 && (
+                    <div className="bg-yellow-50 rounded-lg p-4 border-2 border-yellow-200">
+                      <h4 className="font-semibold text-yellow-900 mb-2 flex items-center">
+                        <TrendingUp className="h-4 w-4 mr-2" />
+                        Skills to Upgrade ({roadmap.skill_gap_analysis.skills_to_upgrade.length})
+                      </h4>
+                      <div className="space-y-2">
+                        {roadmap.skill_gap_analysis.skills_to_upgrade.map((item: any, idx: number) => (
+                          <div key={idx} className="text-sm text-gray-700">
+                            <span className="font-semibold">{item.skill}:</span>{' '}
+                            <span className="text-yellow-700">{item.current_level}</span>{' '}
+                            <span className="text-gray-500">→</span>{' '}
+                            <span className="text-green-700 font-medium">{item.target_level}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Skills Already Sufficient */}
+                  {roadmap.skill_gap_analysis.skills_already_sufficient && roadmap.skill_gap_analysis.skills_already_sufficient.length > 0 && (
+                    <div className="bg-green-50 rounded-lg p-4 border-2 border-green-200">
+                      <h4 className="font-semibold text-green-900 mb-2 flex items-center">
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Already Sufficient ({roadmap.skill_gap_analysis.skills_already_sufficient.length})
+                      </h4>
+                      <div className="flex flex-wrap gap-2">
+                        {roadmap.skill_gap_analysis.skills_already_sufficient.map((skill: string, idx: number) => (
+                          <Badge key={idx} className="bg-green-600 text-white border-0">{skill}</Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </Card>
+        )}
+
         {/* Summary Section */}
         {roadmap.summary && (
           <Card className="p-8 mb-10 bg-white border-l-4 border-blue-600 shadow-lg">
@@ -208,7 +274,7 @@ export default function LearningRoadmapPage() {
                       <Target className="h-5 w-5 text-blue-600" />
                     </div>
                     <Badge className="bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0">
-                      {path.readiness_after_phase_2 || 'N/A'}
+                      {path.readiness_percentage || 'N/A'}
                     </Badge>
                   </div>
                   <h3 className="font-bold text-lg text-gray-900 mb-3">{path.role}</h3>
@@ -295,14 +361,52 @@ export default function LearningRoadmapPage() {
                           {/* Skill Header */}
                           <div className="flex items-start justify-between">
                             <h4 className="font-bold text-lg text-gray-900 group-hover:text-blue-600 transition-colors leading-tight">{skill.skill}</h4>
-                            <Badge className={cn("text-xs whitespace-nowrap ml-2", getDifficultyColor(skill.difficulty))}>
-                              {skill.difficulty}
-                            </Badge>
                           </div>
 
-                          {/* Skill Category and Time */}
-                          <div className="flex items-center space-x-3 text-sm">
+                          {/* Skill Type and Level Progress */}
+                          {skill.skill_type && (
+                            <div className="space-y-2">
+                              <Badge 
+                                className={cn(
+                                  "text-xs font-medium",
+                                  skill.skill_type === 'new' 
+                                    ? "bg-red-100 text-red-700 border-red-300" 
+                                    : "bg-yellow-100 text-yellow-700 border-yellow-300"
+                                )}
+                              >
+                                {skill.skill_type === 'new' ? '🆕 New Skill' : '⬆️ Upgrade'}
+                              </Badge>
+                              {skill.skill_type === 'upgrade' && skill.current_level && skill.target_level && (
+                                <div className="text-xs bg-gradient-to-r from-yellow-50 to-green-50 p-2 rounded border border-yellow-200">
+                                  <span className="font-semibold text-gray-700">Level:</span>{' '}
+                                  <span className="text-yellow-700">{skill.current_level}</span>{' '}
+                                  <span className="text-gray-500">→</span>{' '}
+                                  <span className="text-green-700 font-semibold">{skill.target_level}</span>
+                                </div>
+                              )}
+                              {skill.skill_type === 'new' && skill.target_level && (
+                                <div className="text-xs bg-blue-50 p-2 rounded border border-blue-200">
+                                  <span className="font-semibold text-gray-700">Target:</span>{' '}
+                                  <span className="text-blue-700 font-semibold">{skill.target_level}</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Gap Addressed */}
+                          {skill.gap_addressed && (
+                            <div className="text-xs bg-orange-50 p-3 rounded-lg border border-orange-200">
+                              <span className="font-semibold text-orange-900">Gap: </span>
+                              <span className="text-gray-700">{skill.gap_addressed}</span>
+                            </div>
+                          )}
+
+                          {/* Skill Category, Difficulty, and Time */}
+                          <div className="flex items-center flex-wrap gap-2 text-sm">
                             <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">{skill.category}</Badge>
+                            <Badge className={cn("text-xs", getDifficultyColor(skill.difficulty))}>
+                              📚 {skill.difficulty}
+                            </Badge>
                             <div className="flex items-center text-gray-600">
                               <Clock className="h-3.5 w-3.5 mr-1" />
                               <span className="text-xs font-medium">{skill.time_estimate}</span>

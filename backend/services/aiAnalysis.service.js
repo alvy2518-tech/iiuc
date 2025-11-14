@@ -491,30 +491,72 @@ class AIAnalysisService {
         }
       });
 
+      // Format candidate skills for clarity
+      const candidateSkillsList = candidateSkills.map(s => `${s.skill_name} (${s.skill_level})`).join(', ') || 'None';
+      
+      // Format job requirements for clarity
+      const jobsSummary = interestedJobs.map(job => {
+        const requiredSkills = job.skills?.map(s => s.skill_name).join(', ') || 'Not specified';
+        return `- ${job.job_title} (${job.department}, ${job.experience_level}): Requires ${requiredSkills}`;
+      }).join('\n');
+
+      // Get all unique required skills
+      const allRequiredSkills = new Set();
+      interestedJobs.forEach(job => {
+        if (job.skills && Array.isArray(job.skills)) {
+          job.skills.forEach(skill => allRequiredSkills.add(skill.skill_name));
+        }
+      });
+      const requiredSkillsList = Array.from(allRequiredSkills).join(', ') || 'None';
+
       const prompt = `
-        You are a career development expert. Create a comprehensive LINEAR learning roadmap for a candidate.
+        You are a career development expert. Analyze a candidate's skills against their interested jobs and create a personalized learning roadmap.
         
-        CANDIDATE'S CURRENT SKILLS:
-        ${JSON.stringify(candidateSkills, null, 2)}
+        CANDIDATE'S CURRENT SKILLS (with expertise levels):
+        ${candidateSkillsList}
         
-        INTERESTED JOBS:
-        ${JSON.stringify(interestedJobs.map(job => ({
-          id: job.id,
-          job_title: job.job_title,
-          department: job.department,
-          experience_level: job.experience_level,
-          required_skills: job.skills?.map(s => s.skill_name) || []
-        })), null, 2)}
+        CANDIDATE'S INTERESTED JOBS:
+        ${jobsSummary}
+        
+        ALL REQUIRED SKILLS FROM INTERESTED JOBS:
+        ${requiredSkillsList}
+        
+        CRITICAL ANALYSIS TASK:
+        1. For EACH required skill, check if the candidate ALREADY HAS it
+        2. If they have it:
+           - Check their current level (Beginner, Intermediate, Advanced, Expert)
+           - Determine if they need to UPGRADE (e.g., "React from Beginner to Intermediate")
+           - If their level is already sufficient, SKIP this skill entirely
+        3. If they DON'T have it:
+           - Mark it as a NEW SKILL to learn
+        4. Create a roadmap with ONLY:
+           - NEW skills the candidate doesn't have at all
+           - UPGRADE paths for skills they have but need to improve
+        
+        IMPORTANT MATCHING RULES:
+        - Match skills case-insensitively (e.g., "React", "react", "REACT" are the same)
+        - Match skill variants (e.g., "Node.js", "Nodejs", "NodeJS" are the same)
+        - If candidate has "React (Beginner)" and job needs "React", they need to UPGRADE to Intermediate/Advanced
+        - If candidate has "AWS (Expert)" and job needs "AWS", SKIP it (they already have it)
         
         Create a LINEAR learning path (Phase 1 → Phase 2 → Phase 3...) that:
-        1. Starts with foundational skills the candidate is missing
-        2. Progresses to intermediate skills that build on foundations
-        3. Ends with advanced/specialized skills for their target roles
+        1. Starts with foundational NEW skills or critical UPGRADES
+        2. Progresses to intermediate skills and upgrades
+        3. Ends with advanced/specialized skills
         4. Shows which skills unlock which career opportunities
         5. Provides realistic time estimates for each phase
+        6. For EACH skill, clearly indicates if it's NEW or an UPGRADE
         
         Return ONLY a JSON object in this EXACT format:
         {
+          "skill_gap_analysis": {
+            "new_skills_needed": ["JavaScript", "AWS", "Docker"],
+            "skills_to_upgrade": [
+              {"skill": "React", "current_level": "Beginner", "target_level": "Intermediate"},
+              {"skill": "Node.js", "current_level": "Beginner", "target_level": "Advanced"}
+            ],
+            "skills_already_sufficient": ["Python", "C"]
+          },
           "learning_phases": [
             {
               "phase": 1,
@@ -524,23 +566,42 @@ class AIAnalysisService {
               "skills": [
                 {
                   "skill": "JavaScript",
+                  "skill_type": "new",
+                  "current_level": null,
+                  "target_level": "Intermediate",
                   "category": "programming_language",
                   "difficulty": "beginner",
                   "time_estimate": "4 weeks",
                   "learning_path": "Start with basics, then ES6+",
                   "resources": ["freeCodeCamp", "MDN Web Docs", "JavaScript.info"],
                   "unlocks": ["React", "Node.js"],
-                  "required_for_jobs": ["uuid1", "uuid2"]
+                  "required_for_jobs": ["uuid1", "uuid2"],
+                  "gap_addressed": "Missing foundational skill for frontend development"
                 }
               ]
             },
             {
               "phase": 2,
-              "title": "Intermediate Development",
-              "description": "Build on your foundation",
+              "title": "Skill Upgrades",
+              "description": "Improve your existing skills to job-ready level",
               "duration": "3-4 months",
               "prerequisites": ["JavaScript"],
-              "skills": [...]
+              "skills": [
+                {
+                  "skill": "React",
+                  "skill_type": "upgrade",
+                  "current_level": "Beginner",
+                  "target_level": "Intermediate",
+                  "category": "framework",
+                  "difficulty": "intermediate",
+                  "time_estimate": "6 weeks",
+                  "learning_path": "Focus on advanced hooks, context, and state management",
+                  "resources": ["React Official Docs", "Epic React"],
+                  "unlocks": ["Next.js", "React Native"],
+                  "required_for_jobs": ["uuid1"],
+                  "gap_addressed": "Upgrade from Beginner to meet job requirements"
+                }
+              ]
             }
           ],
           "career_paths": [
@@ -548,24 +609,31 @@ class AIAnalysisService {
               "role": "Frontend Developer",
               "target_job_ids": ["uuid1", "uuid2"],
               "required_phases": [1, 2],
-              "readiness_after_phase_2": "75%",
+              "readiness_percentage": "75%",
               "job_titles": ["Frontend Developer", "React Developer"]
             }
           ],
           "total_time_estimate": "6-9 months",
           "total_skills_needed": 15,
-          "summary": "Your learning journey to become job-ready"
+          "summary": "Your learning journey focuses on 5 new skills and upgrading 3 existing skills to meet job requirements"
         }
         
         IMPORTANT RULES:
+        - FIRST: Create the "skill_gap_analysis" section comparing candidate skills vs job requirements
+        - For EVERY skill in learning_phases, set "skill_type" to either "new" or "upgrade"
+        - For "new" skills: current_level = null, target_level = recommended level
+        - For "upgrade" skills: current_level = candidate's current level, target_level = required level
+        - For "difficulty" field: set to "beginner"/"intermediate"/"advanced" based on how hard it is TO LEARN (not candidate's current level)
+        - In "gap_addressed", explain what gap this fills (e.g., "New skill needed for job X" or "Upgrade from Beginner to Intermediate")
+        - For career_paths: ALWAYS fill "readiness_percentage" (e.g., "65%", "80%", "95%") - estimate how job-ready they'll be
         - Make phases LINEAR and sequential (must complete phase 1 before phase 2)
         - Group related skills together in same phase
         - Ensure prerequisites are in earlier phases
         - Be realistic with time estimates
-        - Only include skills the candidate doesn't already have
         - Link skills to specific job IDs where they're required
         - Limit to 3-5 phases maximum
         - Each phase should have 3-8 skills
+        - If candidate already has a skill at Expert level, DO NOT include it
       `;
 
       const response = await openai.chat.completions.create({
@@ -573,7 +641,7 @@ class AIAnalysisService {
         messages: [
           {
             role: "system",
-            content: "You are an expert career advisor creating structured learning roadmaps. Return only valid JSON objects with the exact structure specified."
+            content: "You are an expert career advisor creating structured learning roadmaps. Return only valid JSON objects with the exact structure specified. Do NOT wrap the JSON in markdown code blocks."
           },
           {
             role: "user",
@@ -584,7 +652,30 @@ class AIAnalysisService {
         max_tokens: 4000
       });
 
-      const roadmap = JSON.parse(response.choices[0].message.content);
+      // Parse the response, handling potential markdown wrapping
+      let roadmap;
+      try {
+        const content = response.choices?.[0]?.message?.content?.trim();
+        if (!content) {
+          throw new Error('AI returned empty response');
+        }
+        
+        console.log('AI Roadmap Response - Content length:', content.length);
+        console.log('AI Roadmap Response - Preview:', content.substring(0, 100));
+        
+        // Try to extract JSON from markdown code blocks
+        let jsonContent = content;
+        if (content.startsWith('```')) {
+          // Remove markdown code blocks
+          jsonContent = content.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
+        }
+        
+        roadmap = JSON.parse(jsonContent);
+      } catch (parseError) {
+        console.error('Roadmap parse error:', parseError);
+        console.error('Response content:', response.choices?.[0]?.message?.content);
+        throw new Error('Failed to parse roadmap from AI response');
+      }
       
       // Validate response structure
       if (!roadmap.learning_phases || !Array.isArray(roadmap.learning_phases)) {
@@ -592,6 +683,11 @@ class AIAnalysisService {
       }
 
       return {
+        skill_gap_analysis: roadmap.skill_gap_analysis || {
+          new_skills_needed: [],
+          skills_to_upgrade: [],
+          skills_already_sufficient: []
+        },
         learning_phases: roadmap.learning_phases || [],
         career_paths: roadmap.career_paths || [],
         total_time_estimate: roadmap.total_time_estimate || '0 months',
