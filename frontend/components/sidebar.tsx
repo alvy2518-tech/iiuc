@@ -22,7 +22,8 @@ import {
   UserCheck,
   Bookmark,
   Heart,
-  TrendingUp
+  TrendingUp,
+  FileText
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -89,6 +90,7 @@ export function Sidebar({ role, isMobileOpen, setIsMobileOpen }: SidebarProps) {
     { href: "/candidate/profile/projects", label: t('profile.projects'), icon: FolderOpen },
     { href: "/candidate/profile/certifications", label: t('profile.certifications'), icon: Award },
     { href: "/candidate/profile/preferences", label: t('profile.preferences'), icon: Settings },
+    { href: "/candidate/cv", label: "CV Builder", icon: FileText },
   ]
 
   const candidateNav: NavItem[] = [

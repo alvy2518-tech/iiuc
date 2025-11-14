@@ -330,6 +330,7 @@ export function CommonNavbar() {
                   <Link href="/candidate/profile/projects" onClick={() => setMobileMenuOpen(false)} className="px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100">{t('profile.projects')}</Link>
                   <Link href="/candidate/profile/certifications" onClick={() => setMobileMenuOpen(false)} className="px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100">{t('profile.certifications')}</Link>
                   <Link href="/candidate/profile/preferences" onClick={() => setMobileMenuOpen(false)} className="px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100">{t('profile.preferences')}</Link>
+                  <Link href="/candidate/cv" onClick={() => setMobileMenuOpen(false)} className="px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-100">CV Builder</Link>
                 </div>
               )}
 

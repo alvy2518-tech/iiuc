@@ -1,6 +1,6 @@
 "use client"
 
-import { User, Briefcase, GraduationCap, Award, FolderOpen, Star, Settings } from "lucide-react"
+import { User, Briefcase, GraduationCap, Award, FolderOpen, Star, Settings, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { useLanguage } from "@/components/language-provider"
@@ -28,6 +28,7 @@ export function ProfileSidebar({ user }: ProfileSidebarProps) {
     { href: "/candidate/profile/projects", labelKey: "profile.projects", icon: FolderOpen },
     { href: "/candidate/profile/certifications", labelKey: "profile.certifications", icon: Award },
     { href: "/candidate/profile/preferences", labelKey: "profile.preferences", icon: Settings },
+    { href: "/candidate/cv", labelKey: "CV Builder", icon: FileText },
   ]
 
   return (
@@ -62,7 +63,8 @@ export function ProfileSidebar({ user }: ProfileSidebarProps) {
           {navItems.map((item) => {
             const Icon = item.icon
             const isActive = pathname === item.href || 
-              (item.href === "/candidate/profile/edit/basic" && pathname === "/candidate/profile/edit")
+              (item.href === "/candidate/profile/edit/basic" && pathname === "/candidate/profile/edit") ||
+              (item.href === "/candidate/cv" && pathname.startsWith("/candidate/cv"))
             
             return (
               <Link 

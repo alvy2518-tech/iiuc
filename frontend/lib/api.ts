@@ -269,3 +269,19 @@ export const coursesAPI = {
   deleteCourse: (courseId: string) => api.delete(`/courses/${courseId}`),
 };
 
+// CV/Profile Assistant API
+export const cvAPI = {
+  // Get full profile data for CV
+  getProfile: () => api.get('/cv/profile'),
+  
+  // Generate professional summary
+  generateSummary: () => api.post('/cv/summary'),
+  
+  // Enhance bullet points for experience/projects
+  enhanceBullets: (type: 'experience' | 'projects') => 
+    api.post('/cv/enhance-bullets', { type }),
+  
+  // Generate recommendations
+  generateRecommendations: () => api.post('/cv/recommendations'),
+};
+
