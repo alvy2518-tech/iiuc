@@ -546,6 +546,20 @@ class AIAnalysisService {
         4. Shows which skills unlock which career opportunities
         5. Provides realistic time estimates for each phase
         6. For EACH skill, clearly indicates if it's NEW or an UPGRADE
+        7. Include practical project ideas for each phase to apply learned skills
+        8. Provide clear guidance on when to start applying for jobs
+        
+        For project_ideas: Create 2-4 practical, buildable projects per phase that use the skills from that phase. Each project should be:
+        - Realistic and achievable
+        - Progressive in difficulty
+        - Include specific technologies and learning outcomes
+        - Take 1-4 weeks to complete
+        
+        For job_application_timeline: Determine the optimal phase to start applying (usually after 60-80% of skills are learned) and provide:
+        - When to start applying (after which phase)
+        - Preparation steps before applying
+        - Target roles to apply for
+        - Application strategy
         
         Return ONLY a JSON object in this EXACT format:
         {
@@ -627,6 +641,55 @@ class AIAnalysisService {
               ]
             }
           ],
+          "project_ideas": [
+            {
+              "phase": 1,
+              "projects": [
+                {
+                  "title": "Personal Portfolio Website",
+                  "description": "Build a responsive portfolio website using HTML, CSS, and JavaScript",
+                  "difficulty": "beginner",
+                  "estimated_time": "2-3 weeks",
+                  "technologies": ["HTML", "CSS", "JavaScript"],
+                  "learning_outcomes": ["DOM manipulation", "Responsive design", "Basic interactivity"]
+                },
+                {
+                  "title": "Weather App",
+                  "description": "Create a weather application that fetches data from an API",
+                  "difficulty": "beginner",
+                  "estimated_time": "1-2 weeks",
+                  "technologies": ["JavaScript", "API integration"],
+                  "learning_outcomes": ["API calls", "Async/await", "Error handling"]
+                }
+              ]
+            },
+            {
+              "phase": 2,
+              "projects": [
+                {
+                  "title": "Task Management App",
+                  "description": "Build a React-based task manager with CRUD operations",
+                  "difficulty": "intermediate",
+                  "estimated_time": "3-4 weeks",
+                  "technologies": ["React", "State management", "Local storage"],
+                  "learning_outcomes": ["Component lifecycle", "State management", "User interactions"]
+                }
+              ]
+            }
+          ],
+          "job_application_timeline": {
+            "start_applying_after_phase": 2,
+            "suggested_timing": "After completing Phase 2 (approximately 5-7 months into your learning journey)",
+            "preparation_steps": [
+              "Update your resume with new skills and projects",
+              "Build a strong portfolio showcasing your work",
+              "Network on LinkedIn and attend meetups",
+              "Practice coding interviews and technical questions",
+              "Apply to entry-level positions first to gain experience"
+            ],
+            "target_roles": ["Junior Frontend Developer", "Web Developer", "Software Engineer Intern"],
+            "application_strategy": "Apply to 5-10 positions per week, focusing on companies that match your skill level and interests"
+          },
           "career_paths": [
             {
               "role": "Frontend Developer",
@@ -743,6 +806,14 @@ class AIAnalysisService {
           skills_already_sufficient: []
         },
         learning_phases: roadmap.learning_phases || [],
+        project_ideas: roadmap.project_ideas || [],
+        job_application_timeline: roadmap.job_application_timeline || {
+          start_applying_after_phase: 2,
+          suggested_timing: "After completing Phase 2",
+          preparation_steps: [],
+          target_roles: [],
+          application_strategy: ""
+        },
         career_paths: roadmap.career_paths || [],
         total_time_estimate: roadmap.total_time_estimate || '0 months',
         total_skills_needed: roadmap.total_skills_needed || 0,
