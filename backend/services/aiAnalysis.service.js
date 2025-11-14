@@ -947,7 +947,7 @@ class AIAnalysisService {
       `;
 
       const response = await openai.chat.completions.create({
-        model: "gpt-5-nano",
+        model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
@@ -1031,7 +1031,7 @@ class AIAnalysisService {
         Return ONLY the JSON array.`;
 
       const response = await openai.chat.completions.create({
-        model: "gpt-4.1-nano",  // Fast, non-reasoning model
+        model: "gpt-4o-mini",  // Fast, reliable model
         messages: [
           {
             role: "system",
@@ -1042,7 +1042,7 @@ class AIAnalysisService {
             content: prompt
           }
         ],
-        max_completion_tokens: 3000,
+        max_tokens: 3000,
         temperature: 0.7  // Add some variability to questions
       });
 
